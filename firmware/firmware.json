@@ -1,9 +1,9 @@
 {
   "product": "BluBot",
-  "latestVersion": "1.0.1",
-  "fileName": "BluBot_v1.0.1.py",
-  "downloadUrl": "https://github.com/gameseek/Bluebot-Liveupdate/blob/main/firmware/BluBot_v1.0.1.py",
-  "sha256": "11b3899cfc3e5f21da19e6c061dcb734301a1c91ff0666fbc3172914f0a224e6",
-  "fileSize": 61306,
-  "releaseNotes": "Improved BLE OTA and motor safety"
+  "latestVersion": "1.0.2",
+  "fileName": "BlueBot_v1.0.2.py",
+  "downloadUrl": "https://github.com/gameseek/Bluebot-Liveupdate/blob/main/firmware/BlueBot_v1.0.2.py",
+  "sha256": "c5261fa366bf0990d9dde139b595004228d34d4dd9c09688df7cdbf8823779d0",
+  "fileSize": 67300,
+  "releaseNotes": "Improved stability and performance. Fixed minor bugs. Added new features for enhanced user experience."
 }
