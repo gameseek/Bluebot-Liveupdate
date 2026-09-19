@@ -2,7 +2,7 @@
   "product": "BluBot",
   "latestVersion": "1.0.5",
   "fileName": "BluBot_v1.0.5.py",
-  "downloadUrl": "https://your-domain.com/firmware/BluBot_v1.0.1.py",
+  "downloadUrl": "https://github.com/gameseek/Bluebot-Liveupdate/blob/main/firmware/BluBot_v1.0.1.py",
   "sha256": "53c9a4d92c1234567890abcdef...",
   "fileSize": 38291,
   "releaseNotes": "Improved BLE OTA and motor safety"
