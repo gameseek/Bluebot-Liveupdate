@@ -24,11 +24,15 @@ BATTERY_PIN = 0
 
 
 # ================================================================
-# FIRMWARE
+# FIRMWARE VERSION
 # ================================================================
 
 FIRMWARE_VERSION = "1.0.3"
-SETTINGS_VERSION = "1.0.3"
+
+# Settings structure did not change in v1.0.3.
+# Keeping this at 1.0.2 prevents existing settings being overwritten.
+
+SETTINGS_VERSION = "1.0.2"
 
 
 # ================================================================
@@ -52,12 +56,13 @@ from ota import OTAUpdater
 try:
     from VL53L0X_V1 import VL53L0X
     VL53_AVAILABLE = True
+
 except:
     VL53_AVAILABLE = False
 
 
 # ================================================================
-# GENERAL CONFIG
+# GENERAL CONFIGURATION
 # ================================================================
 
 DEVICE_NAME = "BluBot"
@@ -86,15 +91,13 @@ MODE_AUTO = 3
 # ================================================================
 # LED MODES
 #
-# APP MAPPING
-#
-# 0 = OFF
-# 1 = SOLID
-# 2 = PULSE
-# 3 = RAINBOW
-# 4 = STROBE
-# 5 = CHASE
-# 6 = BREATHING
+# 0 OFF
+# 1 SOLID
+# 2 PULSE
+# 3 RAINBOW
+# 4 STROBE
+# 5 CHASE
+# 6 BREATHING
 # ================================================================
 
 LED_OFF = 0
@@ -108,17 +111,6 @@ LED_BREATHING = 6
 
 # ================================================================
 # DEFAULT SETTINGS
-#
-# First boot defaults:
-#
-# MODE  = REMOTE
-# SPEED = 75%
-# PID   = 0,0,0
-#
-# LED:
-# WHITE
-# 100%
-# TRIPLE STROBE
 # ================================================================
 
 DEFAULT_SETTINGS = {
@@ -133,24 +125,23 @@ DEFAULT_SETTINGS = {
     "i": 0.0,
     "d": 0.0,
 
+    # White LEDs
     "led_r": 255,
     "led_g": 255,
     "led_b": 255,
 
     "led_brightness": 100,
 
+    # Triple white strobe
     "led_animation": LED_STROBE,
 
-    # Complete:
-    # flash-flash-flash-long pause
+    # Complete flash-flash-flash + pause cycle
     "led_speed": 1000
 }
 
 
 # ================================================================
-# BATTERY CONFIGURATION
-#
-# PCB:
+# BATTERY
 #
 # Battery+
 #    |
@@ -161,12 +152,6 @@ DEFAULT_SETTINGS = {
 #   33K
 #    |
 #   GND
-#
-# Actual measurement:
-#
-# Battery around 7.8V
-# ADC node around 1.8V
-#
 # ================================================================
 
 BATTERY_R1 = 100000.0
@@ -181,10 +166,6 @@ BATTERY_CALIBRATION = 1.075
 ADC_REFERENCE_V = 3.30
 
 
-# ================================================================
-# BATTERY PERCENT LOOKUP
-# ================================================================
-
 BATTERY_TABLE = (
 
     (8.40, 100),
@@ -192,15 +173,18 @@ BATTERY_TABLE = (
     (8.20, 90),
     (8.10, 85),
     (8.00, 80),
+
     (7.90, 75),
     (7.80, 70),
     (7.70, 60),
     (7.60, 50),
     (7.50, 40),
+
     (7.40, 30),
     (7.30, 20),
     (7.20, 15),
     (7.00, 10),
+
     (6.80, 5),
     (6.40, 0)
 )
@@ -210,13 +194,7 @@ BATTERY_TABLE = (
 # SENSOR CONFIG
 # ================================================================
 
-# ToF pointing toward floor.
-#
-# <= this distance = FLOOR
-# > this distance or no reading = CLIFF
-
 CLIFF_THRESHOLD_MM = 120
-
 
 SHARP_MIN_CM = 4.0
 SHARP_MAX_CM = 50.0
@@ -225,7 +203,7 @@ SHARP_MAX_CM = 50.0
 # ================================================================
 # MOTOR DIRECTION
 #
-# Set True only if a physical side runs backwards.
+# Change to True if physical motor direction is reversed.
 # ================================================================
 
 LEFT_MOTOR_INVERT = False
@@ -248,7 +226,7 @@ def clamp(value, minimum, maximum):
 
 
 # ================================================================
-# SETTINGS FILE
+# SETTINGS
 # ================================================================
 
 def write_settings(data):
@@ -265,12 +243,9 @@ def write_settings(data):
                 file
             )
 
-        print(
-            "Settings saved"
-        )
+        print("Settings saved")
 
         return True
-
 
     except Exception as e:
 
@@ -282,15 +257,9 @@ def write_settings(data):
         return False
 
 
-# ================================================================
-# CREATE DEFAULT SETTINGS
-# ================================================================
-
 def create_default_settings():
 
-    data = (
-        DEFAULT_SETTINGS.copy()
-    )
+    data = DEFAULT_SETTINGS.copy()
 
     write_settings(
         data
@@ -299,46 +268,26 @@ def create_default_settings():
     return data
 
 
-# ================================================================
-# SETTINGS MIGRATION
-#
-# v1.0.1 -> v1.0.2
-#
-# KEEP:
-#
-# mode
-# speed
-# PID
-#
-# CHANGE ONCE:
-#
-# LED = white
-# brightness = 100%
-# animation = strobe
-# speed = 1000ms
-# ================================================================
-
 def migrate_settings(data):
 
     changed = False
 
 
     # ------------------------------------------------------------
-    # Add any missing keys
+    # Add any missing values
     # ------------------------------------------------------------
 
     for key in DEFAULT_SETTINGS:
 
         if key not in data:
 
-            data[key] = (
-                DEFAULT_SETTINGS[key]
-            )
+            data[key] = DEFAULT_SETTINGS[key]
 
             changed = True
 
 
     old_version = str(
+
         data.get(
             "settings_version",
             "1.0.1"
@@ -347,7 +296,9 @@ def migrate_settings(data):
 
 
     # ------------------------------------------------------------
-    # Upgrade to v1.0.2 settings
+    # Old settings -> v1.0.2 settings
+    #
+    # This happens only once for older robots.
     # ------------------------------------------------------------
 
     if old_version != SETTINGS_VERSION:
@@ -360,25 +311,17 @@ def migrate_settings(data):
         )
 
 
-        # Force new v1.0.2 LED default once
-
         data["led_r"] = 255
         data["led_g"] = 255
         data["led_b"] = 255
 
         data["led_brightness"] = 100
 
-        data["led_animation"] = (
-            LED_STROBE
-        )
+        data["led_animation"] = LED_STROBE
 
         data["led_speed"] = 1000
 
-
-        data["settings_version"] = (
-            SETTINGS_VERSION
-        )
-
+        data["settings_version"] = SETTINGS_VERSION
 
         changed = True
 
@@ -392,10 +335,6 @@ def migrate_settings(data):
 
     return data
 
-
-# ================================================================
-# LOAD SETTINGS
-# ================================================================
 
 def load_settings():
 
@@ -420,21 +359,9 @@ def load_settings():
             )
 
 
-        data = migrate_settings(
+        return migrate_settings(
             data
         )
-
-
-        print(
-            "Settings loaded:"
-        )
-
-        print(
-            data
-        )
-
-
-        return data
 
 
     except Exception as e:
@@ -443,7 +370,6 @@ def load_settings():
             "Settings load error:",
             e
         )
-
 
         return create_default_settings()
 
@@ -503,10 +429,6 @@ led_speed = int(
 )
 
 
-# ================================================================
-# SAVE CURRENT SETTINGS
-# ================================================================
-
 def save_current_settings():
 
     data = {
@@ -555,7 +477,7 @@ def save_current_settings():
 
 
 # ================================================================
-# RUNTIME STATE
+# ROBOT STATE
 # ================================================================
 
 requested_left = 0.0
@@ -578,7 +500,7 @@ rx_buffer = ""
 
 sharp_raw = 0
 sharp_voltage = 0.0
-sharp_distance_cm = 0.0
+sharp_distance_cm = -1.0
 
 
 tof_available = False
@@ -603,9 +525,7 @@ mpu_pitch = 0.0
 mpu_roll = 0.0
 mpu_yaw = 0.0
 
-mpu_last_time = (
-    time.ticks_ms()
-)
+mpu_last_time = time.ticks_ms()
 
 
 # ================================================================
@@ -650,7 +570,6 @@ pwma.freq(
 pwmb.freq(
     MOTOR_PWM_FREQ
 )
-
 
 pwma.duty_u16(0)
 pwmb.duty_u16(0)
@@ -724,9 +643,7 @@ i2c = SoftI2C(
 
 try:
 
-    i2c_devices = (
-        i2c.scan()
-    )
+    i2c_devices = i2c.scan()
 
 except:
 
@@ -734,10 +651,10 @@ except:
 
 
 print(
-    "I2C Devices:",
+    "I2C:",
     [
-        hex(x)
-        for x
+        hex(device)
+        for device
         in i2c_devices
     ]
 )
@@ -774,6 +691,12 @@ try:
         16
     )
 
+    oled.text(
+        "FW:1.0.3",
+        0,
+        32
+    )
+
     oled.show()
 
 
@@ -785,7 +708,7 @@ try:
 except Exception as e:
 
     print(
-        "OLED error:",
+        "OLED not found:",
         e
     )
 
@@ -809,7 +732,6 @@ if VL53_AVAILABLE:
 
         tof_available = True
 
-
         print(
             "VL53L0X ready"
         )
@@ -818,7 +740,7 @@ if VL53_AVAILABLE:
     except Exception as e:
 
         print(
-            "VL53L0X error:",
+            "VL53L0X not found:",
             e
         )
 
@@ -860,7 +782,6 @@ if MPU_ADDR in i2c_devices:
 
         mpu_available = True
 
-
         print(
             "MPU6050 connected"
         )
@@ -884,7 +805,7 @@ else:
 
 
 # ================================================================
-# MOTOR CONTROL
+# MOTOR FUNCTIONS
 # ================================================================
 
 def drive_motor(
@@ -901,8 +822,6 @@ def drive_motor(
         1.0
     )
 
-
-    # Joystick dead zone
 
     if abs(value) < 0.03:
 
@@ -925,9 +844,10 @@ def drive_motor(
 
 
     duty = int(
-        abs(value)
-        *
+
+        abs(value) *
         65535
+
     )
 
 
@@ -947,10 +867,6 @@ def drive_motor(
     )
 
 
-# ================================================================
-# STOP MOTORS
-# ================================================================
-
 def stop_motors():
 
     global actual_left
@@ -962,7 +878,6 @@ def stop_motors():
 
 
     drive_motor(
-
         ain1,
         ain2,
         pwma,
@@ -971,17 +886,12 @@ def stop_motors():
 
 
     drive_motor(
-
         bin1,
         bin2,
         pwmb,
         0
     )
 
-
-# ================================================================
-# SET MOTORS
-# ================================================================
 
 def set_motors(
     left,
@@ -1001,6 +911,7 @@ def set_motors(
         1.0
     )
 
+
     right = clamp(
         right,
         -1.0,
@@ -1011,6 +922,7 @@ def set_motors(
     if abs(left) < 0.03:
         left = 0.0
 
+
     if abs(right) < 0.03:
         right = 0.0
 
@@ -1019,9 +931,7 @@ def set_motors(
     requested_right = right
 
 
-    # ------------------------------------------------------------
-    # Only Remote mode uses app movement for now
-    # ------------------------------------------------------------
+    # Only Remote Mode is active currently
 
     if current_mode != MODE_REMOTE:
 
@@ -1031,19 +941,26 @@ def set_motors(
 
 
     speed_factor = (
+
         max_speed /
         100.0
+
     )
 
 
     actual_left = (
+
         left *
         speed_factor
+
     )
 
+
     actual_right = (
+
         right *
         speed_factor
+
     )
 
 
@@ -1052,7 +969,9 @@ def set_motors(
         ain1,
         ain2,
         pwma,
+
         actual_left,
+
         LEFT_MOTOR_INVERT
     )
 
@@ -1062,7 +981,9 @@ def set_motors(
         bin1,
         bin2,
         pwmb,
+
         actual_right,
+
         RIGHT_MOTOR_INVERT
     )
 
@@ -1092,10 +1013,7 @@ def movement_name():
         right > 0.03
     ):
 
-        if abs(
-            left -
-            right
-        ) < 0.10:
+        if abs(left - right) < 0.10:
 
             return "FORWARD"
 
@@ -1167,7 +1085,7 @@ def movement_name():
 
 
 # ================================================================
-# LED HELPERS
+# LED FUNCTIONS
 # ================================================================
 
 def scale_led_color(
@@ -1179,9 +1097,7 @@ def scale_led_color(
 
     if brightness is None:
 
-        brightness = (
-            led_brightness
-        )
+        brightness = led_brightness
 
 
     brightness = clamp(
@@ -1191,28 +1107,15 @@ def scale_led_color(
     )
 
 
-    factor = (
-        brightness /
-        100.0
-    )
+    factor = brightness / 100.0
 
 
     return (
 
-        int(
-            r *
-            factor
-        ),
+        int(r * factor),
+        int(g * factor),
+        int(b * factor)
 
-        int(
-            g *
-            factor
-        ),
-
-        int(
-            b *
-            factor
-        )
     )
 
 
@@ -1257,10 +1160,6 @@ def set_all_leds(
 
     np.write()
 
-
-# ================================================================
-# RAINBOW COLOR WHEEL
-# ================================================================
 
 def color_wheel(
     position
@@ -1312,10 +1211,6 @@ def color_wheel(
     )
 
 
-# ================================================================
-# LED ANIMATION NAME
-# ================================================================
-
 def led_animation_name():
 
     names = (
@@ -1331,7 +1226,9 @@ def led_animation_name():
 
 
     if (
-        0 <= led_animation <= 6
+        0 <=
+        led_animation <=
+        6
     ):
 
         return names[
@@ -1343,12 +1240,10 @@ def led_animation_name():
 
 
 # ================================================================
-# LED ANIMATION TIMER
+# LED ANIMATION
 # ================================================================
 
-animation_start = (
-    time.ticks_ms()
-)
+animation_start = time.ticks_ms()
 
 
 def reset_led_animation():
@@ -1356,24 +1251,16 @@ def reset_led_animation():
     global animation_start
 
 
-    animation_start = (
-        time.ticks_ms()
-    )
+    animation_start = time.ticks_ms()
 
-
-# ================================================================
-# LED ANIMATION ENGINE
-# ================================================================
 
 def update_led_animation():
 
-    now = (
-        time.ticks_ms()
-    )
+    now = time.ticks_ms()
 
 
     # ============================================================
-    # 0 OFF
+    # OFF
     # ============================================================
 
     if led_animation == LED_OFF:
@@ -1384,7 +1271,7 @@ def update_led_animation():
 
 
     # ============================================================
-    # 1 SOLID
+    # SOLID
     # ============================================================
 
     if led_animation == LED_SOLID:
@@ -1406,33 +1293,30 @@ def update_led_animation():
 
 
     elapsed = (
+
         time.ticks_diff(
             now,
             animation_start
         )
+
         %
+
         period
     )
 
 
-    phase = (
-        elapsed /
-        period
-    )
+    phase = elapsed / period
 
 
     # ============================================================
-    # 2 PULSE
+    # PULSE
     # ============================================================
 
     if led_animation == LED_PULSE:
 
         if phase < 0.10:
 
-            level = (
-                phase /
-                0.10
-            )
+            level = phase / 0.10
 
 
         elif phase < 0.18:
@@ -1440,17 +1324,20 @@ def update_led_animation():
             level = (
 
                 1.0
+
                 -
+
                 (
                     (
                         phase -
                         0.10
                     )
+
                     /
+
                     0.08
-                )
-                *
-                0.65
+
+                ) * 0.65
             )
 
 
@@ -1459,17 +1346,20 @@ def update_led_animation():
             level = (
 
                 0.35
+
                 +
+
                 (
                     (
                         phase -
                         0.18
                     )
+
                     /
+
                     0.08
-                )
-                *
-                0.65
+
+                ) * 0.65
             )
 
 
@@ -1478,13 +1368,17 @@ def update_led_animation():
             level = (
 
                 1.0
+
                 -
+
                 (
                     (
                         phase -
                         0.26
                     )
+
                     /
+
                     0.16
                 )
             )
@@ -1519,14 +1413,16 @@ def update_led_animation():
 
 
     # ============================================================
-    # 3 RAINBOW
+    # RAINBOW
     # ============================================================
 
     if led_animation == LED_RAINBOW:
 
         position = int(
+
             phase *
             255
+
         )
 
 
@@ -1539,15 +1435,15 @@ def update_led_animation():
                 i *
                 256 /
                 NEOPIXEL_COUNT
+
             )
 
 
-            r, g, b = (
-                color_wheel(
+            r, g, b = color_wheel(
 
-                    position +
-                    offset
-                )
+                position +
+                offset
+
             )
 
 
@@ -1564,21 +1460,19 @@ def update_led_animation():
 
 
     # ============================================================
-    # 4 WHITE TRIPLE STROBE
+    # WHITE TRIPLE STROBE
     #
-    # FLASH
-    # OFF
-    # FLASH
-    # OFF
-    # FLASH
+    # FLASH 1
+    # pause
+    # FLASH 2
+    # pause
+    # FLASH 3
     # LONG PAUSE
     #
     # repeat
     # ============================================================
 
     if led_animation == LED_STROBE:
-
-        # Minimum complete sequence = 400 ms
 
         period = max(
             400,
@@ -1587,34 +1481,20 @@ def update_led_animation():
 
 
         elapsed = (
+
             time.ticks_diff(
                 now,
                 animation_start
             )
+
             %
+
             period
         )
 
 
-        phase = (
-            elapsed /
-            period
-        )
+        phase = elapsed / period
 
-
-        # --------------------------------------------------------
-        # Timing:
-        #
-        # 0.00 - 0.07   flash 1
-        # 0.07 - 0.14   off
-        #
-        # 0.14 - 0.21   flash 2
-        # 0.21 - 0.28   off
-        #
-        # 0.28 - 0.35   flash 3
-        #
-        # 0.35 - 1.00   LONG PAUSE
-        # --------------------------------------------------------
 
         flash_on = (
 
@@ -1640,7 +1520,7 @@ def update_led_animation():
 
         if flash_on:
 
-            # Strobe is ALWAYS white
+            # Strobe always white
 
             set_all_leds(
 
@@ -1649,6 +1529,7 @@ def update_led_animation():
                 255,
 
                 led_brightness
+
             )
 
 
@@ -1661,7 +1542,7 @@ def update_led_animation():
 
 
     # ============================================================
-    # 5 CHASE
+    # CHASE
     # ============================================================
 
     if led_animation == LED_CHASE:
@@ -1673,6 +1554,7 @@ def update_led_animation():
                 led_r,
                 led_g,
                 led_b
+
             )
 
             return
@@ -1682,6 +1564,7 @@ def update_led_animation():
 
             phase *
             NEOPIXEL_COUNT
+
         )
 
 
@@ -1704,14 +1587,12 @@ def update_led_animation():
             )
 
 
-        np[position] = (
+        np[position] = scale_led_color(
 
-            scale_led_color(
+            led_r,
+            led_g,
+            led_b
 
-                led_r,
-                led_g,
-                led_b
-            )
         )
 
 
@@ -1721,7 +1602,7 @@ def update_led_animation():
 
 
     # ============================================================
-    # 6 BREATHING
+    # BREATHING
     # ============================================================
 
     if led_animation == LED_BREATHING:
@@ -1765,7 +1646,7 @@ def update_led_animation():
 
 
 # ================================================================
-# BATTERY PERCENTAGE
+# BATTERY
 # ================================================================
 
 def voltage_to_percent(
@@ -1784,18 +1665,19 @@ def voltage_to_percent(
 
     for index in range(
 
-        len(BATTERY_TABLE) - 1
+        len(BATTERY_TABLE) -
+        1
+
     ):
 
-        high_v, high_p = (
-            BATTERY_TABLE[index]
-        )
+        high_v, high_p = BATTERY_TABLE[
+            index
+        ]
 
-        low_v, low_p = (
-            BATTERY_TABLE[
-                index + 1
-            ]
-        )
+
+        low_v, low_p = BATTERY_TABLE[
+            index + 1
+        ]
 
 
         if (
@@ -1806,26 +1688,25 @@ def voltage_to_percent(
 
             fraction = (
 
-                (
-                    voltage -
-                    low_v
-                )
+                voltage -
+                low_v
 
-                /
+            ) / (
 
-                (
-                    high_v -
-                    low_v
-                )
+                high_v -
+                low_v
+
             )
 
 
             result = (
 
                 low_p
+
                 +
-                fraction
-                *
+
+                fraction *
+
                 (
                     high_p -
                     low_p
@@ -1845,10 +1726,6 @@ def voltage_to_percent(
 
     return 0
 
-
-# ================================================================
-# BATTERY READING
-# ================================================================
 
 def read_battery():
 
@@ -1870,15 +1747,14 @@ def read_battery():
             samples
         ):
 
-            total += (
-                battery_adc.read_u16()
-            )
+            total += battery_adc.read_u16()
 
 
         battery_raw = int(
 
             total /
             samples
+
         )
 
 
@@ -1893,10 +1769,15 @@ def read_battery():
         battery_voltage = (
 
             battery_adc_voltage
+
             *
+
             BATTERY_DIVIDER_RATIO
+
             *
+
             BATTERY_CALIBRATION
+
         )
 
 
@@ -1906,13 +1787,14 @@ def read_battery():
 
             0.0,
             9.5
+
         )
 
 
-        battery_percent = (
-            voltage_to_percent(
-                battery_voltage
-            )
+        battery_percent = voltage_to_percent(
+
+            battery_voltage
+
         )
 
 
@@ -1926,8 +1808,6 @@ def read_battery():
 
 # ================================================================
 # SHARP GP2Y0E03
-#
-# This can be calibrated later without changing anything else.
 # ================================================================
 
 def sharp_voltage_to_distance(
@@ -1939,10 +1819,10 @@ def sharp_voltage_to_distance(
         return SHARP_MAX_CM
 
 
-    distance = (
-        13.0 /
-        voltage
-    )
+    # Approximate conversion.
+    # Can be recalibrated later.
+
+    distance = 13.0 / voltage
 
 
     return clamp(
@@ -1951,6 +1831,7 @@ def sharp_voltage_to_distance(
 
         SHARP_MIN_CM,
         SHARP_MAX_CM
+
     )
 
 
@@ -1972,15 +1853,14 @@ def read_sharp():
             samples
         ):
 
-            total += (
-                sharp_adc.read_u16()
-            )
+            total += sharp_adc.read_u16()
 
 
         sharp_raw = int(
 
             total /
             samples
+
         )
 
 
@@ -1992,10 +1872,10 @@ def read_sharp():
         ) * ADC_REFERENCE_V
 
 
-        sharp_distance_cm = (
-            sharp_voltage_to_distance(
-                sharp_voltage
-            )
+        sharp_distance_cm = sharp_voltage_to_distance(
+
+            sharp_voltage
+
         )
 
 
@@ -2010,7 +1890,7 @@ def read_sharp():
 
 
 # ================================================================
-# VL53L0X RAW READING
+# VL53L0X READING
 # ================================================================
 
 def get_tof_reading():
@@ -2057,9 +1937,7 @@ def get_tof_reading():
             "range"
         ):
 
-            value = (
-                tof.range
-            )
+            value = tof.range
 
 
             if callable(value):
@@ -2080,27 +1958,13 @@ def get_tof_reading():
     return -1
 
 
-# ================================================================
-# FLOOR / CLIFF
-#
-# Valid nearby floor:
-#
-# floor_cliff = 0
-#
-# No reading / too far away:
-#
-# floor_cliff = 1
-# ================================================================
-
 def read_tof():
 
     global tof_distance_mm
     global floor_cliff
 
 
-    # ------------------------------------------------------------
-    # Sensor missing = cannot detect floor
-    # ------------------------------------------------------------
+    # Sensor missing
 
     if not tof_available:
 
@@ -2111,16 +1975,10 @@ def read_tof():
         return
 
 
-    value = (
-        get_tof_reading()
-    )
+    value = get_tof_reading()
 
 
-    # ------------------------------------------------------------
-    # Nothing detected
-    #
-    # Treat as CLIFF
-    # ------------------------------------------------------------
+    # No valid surface detected
 
     if (
         value <= 0
@@ -2135,26 +1993,15 @@ def read_tof():
         return
 
 
-    tof_distance_mm = (
-        value
-    )
+    tof_distance_mm = value
 
 
-    # ------------------------------------------------------------
-    # Floor detected nearby
-    # ------------------------------------------------------------
+    # Nearby surface detected = floor
 
-    if (
-        tof_distance_mm <=
-        CLIFF_THRESHOLD_MM
-    ):
+    if tof_distance_mm <= CLIFF_THRESHOLD_MM:
 
         floor_cliff = 0
 
-
-    # ------------------------------------------------------------
-    # Surface too far away
-    # ------------------------------------------------------------
 
     else:
 
@@ -2181,9 +2028,7 @@ def read_mpu():
 
     try:
 
-        now = (
-            time.ticks_ms()
-        )
+        now = time.ticks_ms()
 
 
         dt = (
@@ -2194,7 +2039,9 @@ def read_mpu():
             )
 
             /
+
             1000.0
+
         )
 
 
@@ -2207,10 +2054,7 @@ def read_mpu():
             dt > 1
         ):
 
-            dt = (
-                SENSOR_INTERVAL_MS /
-                1000.0
-            )
+            dt = SENSOR_INTERVAL_MS / 1000.0
 
 
         raw = i2c.readfrom_mem(
@@ -2218,6 +2062,7 @@ def read_mpu():
             MPU_ADDR,
             0x3B,
             14
+
         )
 
 
@@ -2236,34 +2081,19 @@ def read_mpu():
 
             ">hhhhhhh",
             raw
+
         )
 
 
-        ax = (
-            ax_raw /
-            16384.0
-        )
+        ax = ax_raw / 16384.0
 
-        ay = (
-            ay_raw /
-            16384.0
-        )
+        ay = ay_raw / 16384.0
 
-        az = (
-            az_raw /
-            16384.0
-        )
+        az = az_raw / 16384.0
 
 
-        gz = (
-            gz_raw /
-            131.0
-        )
+        gz = gz_raw / 131.0
 
-
-        # --------------------------------------------------------
-        # Roll
-        # --------------------------------------------------------
 
         mpu_roll = (
 
@@ -2273,45 +2103,40 @@ def read_mpu():
             )
 
             *
+
             57.2957795
+
         )
 
-
-        # --------------------------------------------------------
-        # Pitch
-        # --------------------------------------------------------
 
         denominator = math.sqrt(
 
             ay * ay
             +
             az * az
+
         )
 
 
         mpu_pitch = (
 
             math.atan2(
+
                 -ax,
                 denominator
+
             )
 
             *
+
             57.2957795
+
         )
 
 
-        # --------------------------------------------------------
-        # Relative Yaw
-        #
-        # MPU6050 has no magnetometer,
-        # so yaw naturally drifts.
-        # --------------------------------------------------------
+        # Relative yaw
 
-        mpu_yaw += (
-            gz *
-            dt
-        )
+        mpu_yaw += gz * dt
 
 
         while mpu_yaw > 180:
@@ -2333,7 +2158,7 @@ def read_mpu():
 
 
 # ================================================================
-# UPDATE SENSORS
+# UPDATE ALL SENSORS
 # ================================================================
 
 def update_sensors():
@@ -2372,7 +2197,7 @@ def mode_name():
 
 
 # ================================================================
-# BLE UART
+# BLE NORDIC UART
 # ================================================================
 
 _IRQ_CENTRAL_CONNECT = 1
@@ -2381,17 +2206,23 @@ _IRQ_GATTS_WRITE = 3
 
 
 UART_SERVICE_UUID = bluetooth.UUID(
+
     "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
+
 )
 
 
 UART_TX_UUID = bluetooth.UUID(
+
     "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
+
 )
 
 
 UART_RX_UUID = bluetooth.UUID(
+
     "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
+
 )
 
 
@@ -2412,6 +2243,7 @@ UART_SERVICE = (
             bluetooth.FLAG_WRITE
             |
             bluetooth.FLAG_WRITE_NO_RESPONSE
+
         )
     )
 )
@@ -2432,16 +2264,19 @@ ble.active(True)
     (
         UART_SERVICE,
     )
+
 )
 
 
-# Large enough for OTA commands assembled by BLE writes
+# Commands can arrive fragmented.
+# 1024 byte BLE receive buffer.
 
 ble.gatts_set_buffer(
 
     rx_handle,
     1024,
     True
+
 )
 
 
@@ -2458,14 +2293,11 @@ def ble_send(
         return
 
 
-    data = (
-        message.encode()
-    )
+    data = message.encode()
 
 
-    # Safe notification pieces.
-    #
-    # App combines until newline.
+    # ESP32 sends notification in safe pieces.
+    # App reconstructs until newline.
 
     chunk_size = 20
 
@@ -2479,6 +2311,7 @@ def ble_send(
             0,
             len(data),
             chunk_size
+
         ):
 
             try:
@@ -2490,9 +2323,9 @@ def ble_send(
 
                     data[
                         position:
-                        position +
-                        chunk_size
+                        position + chunk_size
                     ]
+
                 )
 
 
@@ -2505,15 +2338,14 @@ def ble_send(
 
 
 # ================================================================
-# OTA OBJECT
-#
-# OTA code is kept separately in ota.py.
+# OTA
 # ================================================================
 
 ota = OTAUpdater(
 
     ble_send,
     stop_motors
+
 )
 
 
@@ -2523,14 +2355,11 @@ ota = OTAUpdater(
 
 def send_primary_telemetry():
 
-    # ============================================================
-    # S,<dist>,<floor_cliff>,<battery>,<mode>,<speed>
-    # ============================================================
+    # S,<sharp>,<floor>,<battery>,<mode>,<speed>
 
     ble_send(
 
-        "S,{:.1f},{},{},{},{}\n"
-        .format(
+        "S,{:.1f},{},{},{},{}\n".format(
 
             sharp_distance_cm,
 
@@ -2541,6 +2370,7 @@ def send_primary_telemetry():
             current_mode,
 
             max_speed
+
         )
     )
 
@@ -2549,8 +2379,7 @@ def send_led_state():
 
     ble_send(
 
-        "LED,{},{},{},{},{},{}\n"
-        .format(
+        "LED,{},{},{},{},{},{}\n".format(
 
             led_r,
             led_g,
@@ -2561,6 +2390,7 @@ def send_led_state():
             led_animation,
 
             led_speed
+
         )
     )
 
@@ -2569,8 +2399,7 @@ def send_config():
 
     ble_send(
 
-        "CFG,{:.5f},{:.5f},{:.5f},{},{}\n"
-        .format(
+        "CFG,{:.5f},{:.5f},{:.5f},{},{}\n".format(
 
             pid_p,
             pid_i,
@@ -2579,6 +2408,7 @@ def send_config():
             max_speed,
 
             current_mode
+
         )
     )
 
@@ -2587,8 +2417,7 @@ def send_mode():
 
     ble_send(
 
-        "MODE,{}\n"
-        .format(
+        "MODE,{}\n".format(
             current_mode
         )
     )
@@ -2598,11 +2427,11 @@ def send_battery():
 
     ble_send(
 
-        "BAT:{},{:.2f}\n"
-        .format(
+        "BAT:{},{:.2f}\n".format(
 
             battery_percent,
             battery_voltage
+
         )
     )
 
@@ -2611,9 +2440,10 @@ def send_distance():
 
     ble_send(
 
-        "DIST:{:.1f}\n"
-        .format(
+        "DIST:{:.1f}\n".format(
+
             sharp_distance_cm
+
         )
     )
 
@@ -2622,9 +2452,10 @@ def send_floor():
 
     ble_send(
 
-        "FLOOR:{}\n"
-        .format(
+        "FLOOR:{}\n".format(
+
             floor_cliff
+
         )
     )
 
@@ -2638,12 +2469,12 @@ def send_mpu():
 
     ble_send(
 
-        "MPU:{:.1f},{:.1f},{:.1f}\n"
-        .format(
+        "MPU:{:.1f},{:.1f},{:.1f}\n".format(
 
             mpu_pitch,
             mpu_roll,
             mpu_yaw
+
         )
     )
 
@@ -2666,19 +2497,20 @@ def send_all_telemetry():
 
 
 # ================================================================
-# OLED
+# OLED DISPLAY
 #
-# NORMAL DISPLAY:
+# 128 x 64
 #
-# BLE status
-# Mode + Speed
-# Movement
-# L / R motor speed
-# Battery %
-# MPU status
-# Floor / Cliff
+# 1 BLE
+# 2 MODE + SPEED
+# 3 MOVEMENT
+# 4 SHARP DISTANCE
+# 5 BATTERY %
+# 6 MPU STATUS
+# 7 FLOOR / CLIFF
+# 8 FIRMWARE VERSION
 #
-# LED information deliberately NOT shown.
+# L / R motor values removed.
 # ================================================================
 
 def update_oled():
@@ -2691,7 +2523,7 @@ def update_oled():
     try:
 
         # ========================================================
-        # OTA SCREEN
+        # OTA DISPLAY
         # ========================================================
 
         if ota.active:
@@ -2738,6 +2570,7 @@ def update_oled():
 
                 0,
                 48
+
             )
 
 
@@ -2754,8 +2587,7 @@ def update_oled():
 
 
         # ========================================================
-        # LINE 1
-        # BLE
+        # LINE 1 - BLE
         # ========================================================
 
         if ble_connected:
@@ -2765,6 +2597,7 @@ def update_oled():
                 0,
                 0
             )
+
 
         else:
 
@@ -2776,8 +2609,7 @@ def update_oled():
 
 
         # ========================================================
-        # LINE 2
-        # MODE + SPEED
+        # LINE 2 - MODE + SPEED
         # ========================================================
 
         oled.text(
@@ -2791,12 +2623,12 @@ def update_oled():
 
             0,
             8
+
         )
 
 
         # ========================================================
-        # LINE 3
-        # MOVEMENT
+        # LINE 3 - MOVEMENT
         # ========================================================
 
         oled.text(
@@ -2809,76 +2641,90 @@ def update_oled():
 
             0,
             16
+
         )
 
 
         # ========================================================
-        # LINE 4
-        # LEFT / RIGHT MOTOR
+        # LINE 4 - SHARP SENSOR
         # ========================================================
 
-        oled.text(
+        if sharp_distance_cm >= 0:
 
-            "L:{:+3d} R:{:+3d}".format(
+            oled.text(
 
-                int(
-                    actual_left *
-                    100
-                ),
+                "SHARP:{:.1f}cm".format(
 
-                int(
-                    actual_right *
-                    100
-                )
+                    sharp_distance_cm
 
-            )[:16],
+                )[:16],
 
-            0,
-            24
-        )
+                0,
+                24
+
+            )
+
+
+        else:
+
+            oled.text(
+
+                "SHARP: ERROR",
+
+                0,
+                24
+
+            )
 
 
         # ========================================================
-        # LINE 5
-        # BATTERY PERCENT ONLY
+        # LINE 5 - BATTERY %
         # ========================================================
 
         oled.text(
 
             "BAT:{}%".format(
+
                 battery_percent
+
             ),
 
             0,
             32
+
         )
 
 
         # ========================================================
-        # LINE 6
-        # MPU STATUS ONLY
+        # LINE 6 - MPU STATUS
         # ========================================================
 
         if mpu_available:
 
             oled.text(
+
                 "MPU: CONNECTED",
+
                 0,
                 40
+
             )
+
 
         else:
 
             oled.text(
+
                 "MPU: NOT FOUND",
+
                 0,
                 40
+
             )
 
 
         # ========================================================
-        # LINE 7
-        # TOF FLOOR / CLIFF
+        # LINE 7 - FLOOR / CLIFF
         # ========================================================
 
         if (
@@ -2888,33 +2734,42 @@ def update_oled():
         ):
 
             oled.text(
+
                 "TOF: FLOOR",
+
                 0,
                 48
+
             )
+
 
         else:
 
             oled.text(
+
                 "TOF: CLIFF",
+
                 0,
                 48
+
             )
 
 
         # ========================================================
-        # LINE 8
-        # Firmware version
+        # LINE 8 - FIRMWARE
         # ========================================================
 
         oled.text(
 
             "FW:{}".format(
+
                 FIRMWARE_VERSION
+
             ),
 
             0,
             56
+
         )
 
 
@@ -2953,9 +2808,7 @@ def process_command(
     global led_speed
 
 
-    command = (
-        command.strip()
-    )
+    command = command.strip()
 
 
     if not command:
@@ -2977,9 +2830,10 @@ def process_command(
 
         ble_send(
 
-            "FW,{}\n"
-            .format(
+            "FW,{}\n".format(
+
                 FIRMWARE_VERSION
+
             )
         )
 
@@ -2988,8 +2842,6 @@ def process_command(
 
     # ============================================================
     # OTA BEGIN
-    #
-    # OTA_BEGIN,<version>,<size>,<sha256>
     # ============================================================
 
     if command.startswith(
@@ -2998,9 +2850,7 @@ def process_command(
 
         try:
 
-            parts = command.split(
-                ","
-            )
+            parts = command.split(",")
 
 
             if len(parts) != 4:
@@ -3017,13 +2867,14 @@ def process_command(
                 parts[1],
                 parts[2],
                 parts[3]
+
             )
 
 
         except Exception as e:
 
             print(
-                "OTA begin error:",
+                "OTA BEGIN error:",
                 e
             )
 
@@ -3038,8 +2889,6 @@ def process_command(
 
     # ============================================================
     # OTA DATA
-    #
-    # OTA_DATA,<sequence>,<base64>
     # ============================================================
 
     if command.startswith(
@@ -3067,13 +2916,14 @@ def process_command(
 
                 parts[1],
                 parts[2]
+
             )
 
 
         except Exception as e:
 
             print(
-                "OTA data error:",
+                "OTA DATA error:",
                 e
             )
 
@@ -3125,8 +2975,6 @@ def process_command(
 
     # ============================================================
     # MOVE
-    #
-    # MOVE,<left>,<right>
     # ============================================================
 
     if command.startswith(
@@ -3135,9 +2983,7 @@ def process_command(
 
         try:
 
-            parts = command.split(
-                ","
-            )
+            parts = command.split(",")
 
 
             if len(parts) != 3:
@@ -3149,6 +2995,7 @@ def process_command(
                 parts[1]
             )
 
+
             right = float(
                 parts[2]
             )
@@ -3157,9 +3004,12 @@ def process_command(
             if current_mode == MODE_REMOTE:
 
                 set_motors(
+
                     left,
                     right
+
                 )
+
 
             else:
 
@@ -3178,6 +3028,17 @@ def process_command(
 
 
     # ============================================================
+    # STOP
+    # ============================================================
+
+    if command == "STOP":
+
+        stop_motors()
+
+        return
+
+
+    # ============================================================
     # MODE
     # ============================================================
 
@@ -3189,9 +3050,8 @@ def process_command(
 
             new_mode = int(
 
-                command.split(
-                    ","
-                )[1]
+                command.split(",")[1]
+
             )
 
 
@@ -3209,9 +3069,7 @@ def process_command(
             stop_motors()
 
 
-            current_mode = (
-                new_mode
-            )
+            current_mode = new_mode
 
 
             save_current_settings()
@@ -3247,13 +3105,12 @@ def process_command(
                 clamp(
 
                     int(
-                        command.split(
-                            ","
-                        )[1]
+                        command.split(",")[1]
                     ),
 
                     0,
                     100
+
                 )
             )
 
@@ -3264,6 +3121,7 @@ def process_command(
 
                     requested_left,
                     requested_right
+
                 )
 
 
@@ -3285,8 +3143,6 @@ def process_command(
 
     # ============================================================
     # PID
-    #
-    # PID,p,i,d
     # ============================================================
 
     if command.startswith(
@@ -3295,9 +3151,7 @@ def process_command(
 
         try:
 
-            parts = command.split(
-                ","
-            )
+            parts = command.split(",")
 
 
             if len(parts) != 4:
@@ -3335,7 +3189,7 @@ def process_command(
 
 
     # ============================================================
-    # FULL LED
+    # FULL LED CONFIG
     #
     # LED,r,g,b,brightness,animation,speed
     # ============================================================
@@ -3346,9 +3200,7 @@ def process_command(
 
         try:
 
-            parts = command.split(
-                ","
-            )
+            parts = command.split(",")
 
 
             if len(parts) != 7:
@@ -3444,9 +3296,7 @@ def process_command(
 
         try:
 
-            parts = command.split(
-                ","
-            )
+            parts = command.split(",")
 
 
             if len(parts) != 4:
@@ -3517,13 +3367,12 @@ def process_command(
                 clamp(
 
                     int(
-                        command.split(
-                            ","
-                        )[1]
+                        command.split(",")[1]
                     ),
 
                     0,
                     100
+
                 )
             )
 
@@ -3559,13 +3408,12 @@ def process_command(
                 clamp(
 
                     int(
-                        command.split(
-                            ","
-                        )[1]
+                        command.split(",")[1]
                     ),
 
                     0,
                     6
+
                 )
             )
 
@@ -3603,13 +3451,12 @@ def process_command(
                 clamp(
 
                     int(
-                        command.split(
-                            ","
-                        )[1]
+                        command.split(",")[1]
                     ),
 
                     50,
                     5000
+
                 )
             )
 
@@ -3633,7 +3480,7 @@ def process_command(
 
 
     # ============================================================
-    # LED SYNC
+    # LED QUERY
     # ============================================================
 
     if command == "LED?":
@@ -3644,7 +3491,7 @@ def process_command(
 
 
     # ============================================================
-    # CONFIG
+    # CONFIG QUERY
     # ============================================================
 
     if command in (
@@ -3673,9 +3520,9 @@ def process_command(
 
 
     # ============================================================
-    # TRACKING
+    # OBJECT TRACKING
     #
-    # Not implemented yet
+    # Logic will be implemented later.
     # ============================================================
 
     if command == "OBJECTSTART":
@@ -3695,7 +3542,7 @@ def process_command(
     # ============================================================
     # AUTO
     #
-    # Not implemented yet
+    # Logic will be implemented later.
     # ============================================================
 
     if command == "AUTOSTART":
@@ -3713,7 +3560,7 @@ def process_command(
 
 
     print(
-        "UNKNOWN:",
+        "UNKNOWN COMMAND:",
         command
     )
 
@@ -3732,14 +3579,12 @@ def ble_irq(
 
 
     # ============================================================
-    # CONNECTED
+    # CONNECT
     # ============================================================
 
     if event == _IRQ_CENTRAL_CONNECT:
 
-        conn_handle, addr_type, addr = (
-            data
-        )
+        conn_handle, addr_type, addr = data
 
 
         connections.add(
@@ -3758,22 +3603,18 @@ def ble_irq(
         update_oled()
 
 
-        # Immediate state sync
-
         send_mode()
 
         send_all_telemetry()
 
 
     # ============================================================
-    # DISCONNECTED
+    # DISCONNECT
     # ============================================================
 
     elif event == _IRQ_CENTRAL_DISCONNECT:
 
-        conn_handle, addr_type, addr = (
-            data
-        )
+        conn_handle, addr_type, addr = data
 
 
         if conn_handle in connections:
@@ -3784,7 +3625,10 @@ def ble_irq(
 
 
         ble_connected = (
-            len(connections) > 0
+
+            len(connections) >
+            0
+
         )
 
 
@@ -3805,14 +3649,12 @@ def ble_irq(
 
 
     # ============================================================
-    # RECEIVED DATA
+    # RECEIVE
     # ============================================================
 
     elif event == _IRQ_GATTS_WRITE:
 
-        conn_handle, attr_handle = (
-            data
-        )
+        conn_handle, attr_handle = data
 
 
         if attr_handle != rx_handle:
@@ -3832,12 +3674,10 @@ def ble_irq(
             )
 
 
-            rx_buffer += (
-                incoming
-            )
+            rx_buffer += incoming
 
 
-            # Normalize line endings
+            # Normalize endings
 
             rx_buffer = (
 
@@ -3855,22 +3695,22 @@ def ble_irq(
             )
 
 
-            # Commands may arrive over several BLE writes.
+            # ----------------------------------------------------
+            # Commands can arrive fragmented over many BLE writes.
+            # Wait until newline.
+            # ----------------------------------------------------
 
             while "\n" in rx_buffer:
 
-                line, rx_buffer = (
+                line, rx_buffer = rx_buffer.split(
 
-                    rx_buffer.split(
-                        "\n",
-                        1
-                    )
+                    "\n",
+                    1
+
                 )
 
 
-                line = (
-                    line.strip()
-                )
+                line = line.strip()
 
 
                 if line:
@@ -3904,35 +3744,33 @@ def advertising_payload(
     payload = bytearray()
 
 
-    # Flags
+    # Standard BLE Flags
 
     payload += bytes(
+
         (
             2,
             0x01,
             0x06
         )
+
     )
 
 
-    # Local device name
-
-    name_bytes = (
-        name.encode()
-    )
+    name_bytes = name.encode()
 
 
     payload += bytes(
+
         (
             len(name_bytes) + 1,
             0x09
         )
+
     )
 
 
-    payload += (
-        name_bytes
-    )
+    payload += name_bytes
 
 
     return payload
@@ -3946,11 +3784,10 @@ def start_advertising():
 
             100000,
 
-            adv_data=(
-                advertising_payload(
-                    DEVICE_NAME
-                )
+            adv_data=advertising_payload(
+                DEVICE_NAME
             )
+
         )
 
 
@@ -3978,7 +3815,7 @@ print(
 )
 
 print(
-    "            BLUBOT"
+    "           BLUBOT"
 )
 
 print(
@@ -3991,21 +3828,25 @@ print(
     FIRMWARE_VERSION
 )
 
+
 print(
-    "Settings:",
+    "Settings version:",
     SETTINGS_VERSION
 )
+
 
 print(
     "Mode:",
     mode_name()
 )
 
+
 print(
     "Speed:",
     max_speed,
     "%"
 )
+
 
 print(
     "PID:",
@@ -4014,35 +3855,46 @@ print(
     pid_d
 )
 
+
 print(
     "LED:",
     led_animation_name()
 )
 
 
-# Safety
+# ================================================================
+# SAFE INITIAL STATE
+# ================================================================
 
 stop_motors()
 
 
-# Start LED using stored configuration
+# ================================================================
+# START LED
+# ================================================================
 
 reset_led_animation()
 
 update_led_animation()
 
 
-# Initial sensors
+# ================================================================
+# INITIAL SENSOR READINGS
+# ================================================================
 
 update_sensors()
 
 
-# OLED starts as BLE waiting
+# ================================================================
+# INITIAL OLED
+# ================================================================
 
 update_oled()
 
 
-# BLE advertising
+# ================================================================
+# START BLE
+# ================================================================
 
 start_advertising()
 
@@ -4051,9 +3903,7 @@ start_advertising()
 # TIMERS
 # ================================================================
 
-now = (
-    time.ticks_ms()
-)
+now = time.ticks_ms()
 
 sensor_last = now
 oled_last = now
@@ -4066,22 +3916,18 @@ telemetry_last = now
 
 while True:
 
-    now = (
-        time.ticks_ms()
-    )
+    now = time.ticks_ms()
 
 
     # ============================================================
-    # LED
+    # LED ANIMATION
     # ============================================================
 
     update_led_animation()
 
 
     # ============================================================
-    # SENSORS
-    #
-    # 100ms
+    # SENSOR UPDATE
     # ============================================================
 
     if time.ticks_diff(
@@ -4093,13 +3939,12 @@ while True:
 
         sensor_last = now
 
+
         update_sensors()
 
 
     # ============================================================
-    # OLED
-    #
-    # 200ms
+    # OLED UPDATE
     # ============================================================
 
     if time.ticks_diff(
@@ -4111,15 +3956,14 @@ while True:
 
         oled_last = now
 
+
         update_oled()
 
 
     # ============================================================
-    # APP TELEMETRY
+    # BLE TELEMETRY
     #
-    # Every quarter second.
-    #
-    # Suppressed during OTA.
+    # Disabled during OTA to give OTA maximum BLE bandwidth.
     # ============================================================
 
     if time.ticks_diff(
