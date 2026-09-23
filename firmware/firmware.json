@@ -1,9 +1,9 @@
 {
   "product": "BluBot",
-  "latestVersion": "1.0.7",
-  "fileName": "BlueBot_v1.0.7.py",
-  "downloadUrl": "https://github.com/gameseek/Bluebot-Liveupdate/blob/main/firmware/BlueBot_v1.0.7.py",
-  "sha256": "84c759f234896048a7b02ce2ccd38b1622f8c86e92bad63cae78ca9da316741a",
-  "fileSize": 44468,
+  "latestVersion": "1.0.8",
+  "fileName": "BlueBot_v1.0.8.py",
+  "downloadUrl": "https://github.com/gameseek/Bluebot-Liveupdate/blob/main/firmware/BlueBot_v1.0.8.py",
+  "sha256": "7ddb7b27c75ff36d0f5b54186bb2ffc3256f89e281159da06e3a38cf22a7c041",
+  "fileSize": 66096,
   "releaseNotes": "Improved stability and performance. Fixed minor bugs. Added new features for enhanced user experience."
 }
