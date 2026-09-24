@@ -86,15 +86,12 @@ LED_BREATHING = 6
 # ============================================================
 
 SHARP_INTERVAL_MS = 10
-
 TOF_INTERVAL_MS = 30
 
 FAST_TELEMETRY_INTERVAL_MS = 50
-
 MPU_TELEMETRY_INTERVAL_MS = 100
 
 BATTERY_INTERVAL_MS = 1000
-
 OLED_INTERVAL_MS = 100
 
 SETTINGS_SAVE_DELAY_MS = 1500
@@ -112,11 +109,9 @@ EMERGENCY_BRAKE_MS = 100
 # ============================================================
 
 FRONT_HARD_STOP_CM = 15.0
-
 FRONT_MAX_BRAKE_CM = 40.0
 
 FRONT_RELEASE_MIN_CM = 20.0
-
 FRONT_RELEASE_MARGIN_CM = 3.0
 
 FRONT_CONFIRM_COUNT = 1
@@ -128,15 +123,11 @@ FRONT_CONFIRM_COUNT = 1
 
 CLIFF_THRESHOLD_MM = 120
 
-# Three valid consecutive cliff readings.
-# TOF is checked every 30ms:
-# ~90ms confirmation time.
 CLIFF_CONFIRM_COUNT = 3
 
 CLIFF_BRAKE_MS = 120
 
 CLIFF_BACKOFF_MS = 500
-
 CLIFF_BACKOFF_POWER = 0.30
 
 CLIFF_HOLD_MS = 250
@@ -156,15 +147,25 @@ SAFETY_FLASH_PERIOD_MS = 300
 
 
 # ============================================================
-# BATTERY
+# BATTERY - v1.0.11 UPDATED
 # ============================================================
 
 ADC_REFERENCE_V = 3.30
 
+# Your measured:
+#
+# Battery = 8.41V
+# GPIO0   = 1.94V
+#
+# 8.41 / 1.94 = ~4.335
+#
+# Existing 4.3333 is therefore correct.
+
 BATTERY_ADC_FACTOR = 4.3333
 
-BATTERY_FULL_V = 8.40
-BATTERY_EMPTY_V = 6.40
+# Same style as your working Pico bot
+BATTERY_EMPTY_V = 6.0
+BATTERY_FULL_V = 8.4
 
 
 # ============================================================
@@ -174,7 +175,6 @@ BATTERY_EMPTY_V = 6.40
 DRIVE_RAMP_PER_SEC = 3.0
 
 GYRO_TURN_MAX_DPS = 160.0
-
 GYRO_STEER_KP = 0.22
 
 MAX_GYRO_CORRECTION = 0.22
@@ -183,11 +183,7 @@ GYRO_Z_SIGN = 1.0
 
 STRAIGHT_DEADZONE = 0.08
 
-
-# v1.0.10 = 45 degrees and one reading.
-# v1.0.11 requires multiple readings.
 TILT_STOP_DEG = 55.0
-
 TILT_CONFIRM_COUNT = 5
 
 
@@ -200,7 +196,6 @@ DEFAULT_SETTINGS = {
     "settings_version": SETTINGS_VERSION,
 
     "mode": MODE_REMOTE,
-
     "speed": 75,
 
     "p": 0.0,
@@ -295,7 +290,6 @@ def migrate_settings(data):
         if key not in data:
 
             data[key] = DEFAULT_SETTINGS[key]
-
             changed = True
 
 
@@ -306,17 +300,13 @@ def migrate_settings(data):
         data["led_b"] = 255
 
         data["led_brightness"] = 100
-
         data["led_animation"] = LED_STROBE
-
         data["led_speed"] = 1000
 
         changed = True
 
 
-    data["settings_version"] = (
-        SETTINGS_VERSION
-    )
+    data["settings_version"] = SETTINGS_VERSION
 
 
     if changed:
@@ -415,7 +405,6 @@ led_speed = int(
 
 
 settings_dirty = False
-
 settings_dirty_since = 0
 
 
@@ -429,7 +418,6 @@ def save_current_settings():
             "settings_version": SETTINGS_VERSION,
 
             "mode": int(current_mode),
-
             "speed": int(max_speed),
 
             "p": float(pid_p),
@@ -476,19 +464,13 @@ def mark_settings_dirty():
 # ============================================================
 
 requested_left = 0.0
-
 requested_right = 0.0
 
-
 actual_left = 0.0
-
 actual_right = 0.0
 
-
 drive_left_output = 0.0
-
 drive_right_output = 0.0
-
 
 drive_last_time = (
     time.ticks_ms()
@@ -500,7 +482,6 @@ drive_last_time = (
 # ============================================================
 
 motor_brake_active = False
-
 motor_brake_start = 0
 
 
@@ -509,7 +490,6 @@ motor_brake_start = 0
 # ============================================================
 
 front_obstacle = False
-
 front_danger_count = 0
 
 front_trigger_distance = (
@@ -531,14 +511,14 @@ cliff_danger_count = 0
 
 
 # ============================================================
-# TILT SAFETY STATE
+# TILT STATE
 # ============================================================
 
 tilt_danger_count = 0
 
 
 # ============================================================
-# SAFETY LED STATE
+# SAFETY LED
 # ============================================================
 
 safety_flash_start = (
@@ -547,7 +527,7 @@ safety_flash_start = (
 
 
 # ============================================================
-# BLE STATE
+# BLE
 # ============================================================
 
 ble_connected = False
@@ -562,15 +542,12 @@ rx_buffer = ""
 # ============================================================
 
 sharp_raw = 0
-
 sharp_voltage = 0.0
 
 sharp_distance_cm = -1.0
-
 sharp_instant_cm = -1.0
 
 sharp_filtered_cm = 0.0
-
 sharp_filter_ready = False
 
 
@@ -588,16 +565,16 @@ tof_valid = False
 
 
 # ============================================================
-# BATTERY
+# BATTERY STATE - UPDATED
 # ============================================================
 
 battery_voltage = 0.0
 
 battery_percent = 0
 
-battery_filtered_voltage = 0.0
-
-battery_filter_ready = False
+# None means first battery reading has not happened yet.
+# First valid reading initializes the filter immediately.
+battery_filtered = None
 
 
 # ============================================================
@@ -607,13 +584,10 @@ battery_filter_ready = False
 mpu_available = False
 
 mpu_pitch = 0.0
-
 mpu_roll = 0.0
-
 mpu_yaw = 0.0
 
 gyro_z_dps = 0.0
-
 gyro_z_bias = 0.0
 
 mpu_last_time = (
@@ -635,7 +609,6 @@ ain2 = Pin(
     Pin.OUT
 )
 
-
 bin1 = Pin(
     BIN1_PIN,
     Pin.OUT
@@ -656,22 +629,11 @@ pwmb = PWM(
 )
 
 
-pwma.freq(
-    20000
-)
+pwma.freq(20000)
+pwmb.freq(20000)
 
-pwmb.freq(
-    20000
-)
-
-
-pwma.duty_u16(
-    0
-)
-
-pwmb.duty_u16(
-    0
-)
+pwma.duty_u16(0)
+pwmb.duty_u16(0)
 
 
 # ============================================================
@@ -781,7 +743,7 @@ except Exception as e:
 
 
 # ============================================================
-# TOF
+# VL53L0X
 # ============================================================
 
 tof = None
@@ -864,7 +826,6 @@ def calibrate_gyro():
 
 
     total = 0.0
-
     good_samples = 0
 
 
@@ -879,11 +840,9 @@ def calibrate_gyro():
             )
 
 
-            gx_raw, gy_raw, gz_raw = (
-                struct.unpack(
-                    ">hhh",
-                    raw
-                )
+            gx_raw, gy_raw, gz_raw = struct.unpack(
+                ">hhh",
+                raw
             )
 
 
@@ -944,17 +903,10 @@ def drive_motor(
 
     if value == 0:
 
-        in1.value(
-            0
-        )
+        in1.value(0)
+        in2.value(0)
 
-        in2.value(
-            0
-        )
-
-        pwm.duty_u16(
-            0
-        )
+        pwm.duty_u16(0)
 
         return
 
@@ -967,23 +919,13 @@ def drive_motor(
 
     if value > 0:
 
-        in1.value(
-            1
-        )
-
-        in2.value(
-            0
-        )
+        in1.value(1)
+        in2.value(0)
 
     else:
 
-        in1.value(
-            0
-        )
-
-        in2.value(
-            1
-        )
+        in1.value(0)
+        in2.value(1)
 
 
     pwm.duty_u16(
@@ -992,7 +934,7 @@ def drive_motor(
 
 
 # ============================================================
-# TB6612 SHORT BRAKE
+# BRAKE
 # ============================================================
 
 def brake_motor(
@@ -1001,13 +943,8 @@ def brake_motor(
     pwm
 ):
 
-    in1.value(
-        1
-    )
-
-    in2.value(
-        1
-    )
+    in1.value(1)
+    in2.value(1)
 
     pwm.duty_u16(
         65535
@@ -1016,36 +953,15 @@ def brake_motor(
 
 def release_motor_output():
 
-    ain1.value(
-        0
-    )
+    ain1.value(0)
+    ain2.value(0)
 
-    ain2.value(
-        0
-    )
+    bin1.value(0)
+    bin2.value(0)
 
+    pwma.duty_u16(0)
+    pwmb.duty_u16(0)
 
-    bin1.value(
-        0
-    )
-
-    bin2.value(
-        0
-    )
-
-
-    pwma.duty_u16(
-        0
-    )
-
-    pwmb.duty_u16(
-        0
-    )
-
-
-# ============================================================
-# ACTIVE BRAKE
-# ============================================================
 
 def start_emergency_brake():
 
@@ -1099,7 +1015,9 @@ def update_emergency_brake():
         return
 
 
-    now = time.ticks_ms()
+    now = (
+        time.ticks_ms()
+    )
 
 
     if time.ticks_diff(
@@ -1109,13 +1027,8 @@ def update_emergency_brake():
 
         motor_brake_active = False
 
-
         release_motor_output()
 
-
-# ============================================================
-# COAST STOP
-# ============================================================
 
 def coast_motor_stop():
 
@@ -1136,10 +1049,6 @@ def coast_motor_stop():
     release_motor_output()
 
 
-# ============================================================
-# NORMAL STOP
-# ============================================================
-
 def stop_motors():
 
     global requested_left
@@ -1154,7 +1063,7 @@ def stop_motors():
 
 
 # ============================================================
-# SET MOVEMENT TARGET
+# SET MOTOR TARGET
 # ============================================================
 
 def set_motors(
@@ -1197,25 +1106,12 @@ def set_motors(
         return
 
 
-    # IMPORTANT v1.0.11:
-    #
-    # These remain active indefinitely.
-    #
-    # There is NO movement timeout.
-    #
-    # They change only when:
-    # - another MOVE arrives
-    # - STOP arrives
-    # - BLE disconnects
-    # - safety logic overrides movement
-
     requested_left = left
-
     requested_right = right
 
 
 # ============================================================
-# DYNAMIC WALL STOP DISTANCE
+# DYNAMIC FRONT STOP
 # ============================================================
 
 def get_front_stop_distance():
@@ -1253,7 +1149,7 @@ def get_front_stop_distance():
 
 
 # ============================================================
-# SAFETY LED IMMEDIATE
+# SAFETY RED
 # ============================================================
 
 def safety_red_now():
@@ -1281,15 +1177,13 @@ def safety_red_now():
 
 
 # ============================================================
-# FRONT WALL SAFETY
+# FRONT SAFETY
 # ============================================================
 
 def update_front_safety():
 
     global front_obstacle
-
     global front_danger_count
-
     global front_trigger_distance
 
     global requested_left
@@ -1326,7 +1220,6 @@ def update_front_safety():
         ):
 
             front_obstacle = True
-
             front_danger_count = 0
 
 
@@ -1336,12 +1229,10 @@ def update_front_safety():
 
 
             requested_left = 0.0
-
             requested_right = 0.0
 
 
             start_emergency_brake()
-
 
             safety_red_now()
 
@@ -1377,7 +1268,6 @@ def update_front_safety():
         ):
 
             front_obstacle = False
-
             front_danger_count = 0
 
 
@@ -1395,15 +1285,13 @@ def update_front_safety():
 
 
 # ============================================================
-# CLIFF
+# CLIFF SAFETY
 # ============================================================
 
 def start_cliff_safety():
 
     global safety_state
-
     global safety_state_start
-
     global cliff_danger_count
 
     global requested_left
@@ -1422,12 +1310,10 @@ def start_cliff_safety():
 
 
     requested_left = 0.0
-
     requested_right = 0.0
 
 
     start_emergency_brake()
-
 
     safety_red_now()
 
@@ -1450,29 +1336,22 @@ def start_cliff_safety():
 def update_cliff_safety():
 
     global safety_state
-
     global safety_state_start
-
     global cliff_danger_count
 
     global requested_left
     global requested_right
 
 
-    now = time.ticks_ms()
+    now = (
+        time.ticks_ms()
+    )
 
-
-    # ========================================================
-    # NORMAL DRIVING
-    # ========================================================
 
     if (
         safety_state ==
         SAFETY_NORMAL
     ):
-
-        # v1.0.11:
-        # An invalid ToF sample is NOT considered a cliff.
 
         if not tof_valid:
 
@@ -1499,10 +1378,6 @@ def update_cliff_safety():
         return
 
 
-    # ========================================================
-    # BRAKE
-    # ========================================================
-
     if (
         safety_state ==
         SAFETY_CLIFF_BRAKE
@@ -1517,8 +1392,9 @@ def update_cliff_safety():
                 SAFETY_CLIFF_BACKOFF
             )
 
-
-            safety_state_start = now
+            safety_state_start = (
+                now
+            )
 
 
             print(
@@ -1528,10 +1404,6 @@ def update_cliff_safety():
 
         return
 
-
-    # ========================================================
-    # BACK UP
-    # ========================================================
 
     if (
         safety_state ==
@@ -1551,7 +1423,9 @@ def update_cliff_safety():
             )
 
 
-            safety_state_start = now
+            safety_state_start = (
+                now
+            )
 
 
             print(
@@ -1562,10 +1436,6 @@ def update_cliff_safety():
         return
 
 
-    # ========================================================
-    # HOLD
-    # ========================================================
-
     if (
         safety_state ==
         SAFETY_CLIFF_HOLD
@@ -1575,10 +1445,6 @@ def update_cliff_safety():
             now,
             safety_state_start
         ) >= CLIFF_HOLD_MS:
-
-            # Must have a VALID floor reading.
-            #
-            # Invalid ToF data cannot release the safety state.
 
             if (
                 tof_valid
@@ -1595,7 +1461,6 @@ def update_cliff_safety():
 
 
                 requested_left = 0.0
-
                 requested_right = 0.0
 
 
@@ -1611,7 +1476,7 @@ def update_cliff_safety():
 
 
 # ============================================================
-# MPU DRIVE CONTROL
+# DRIVE CONTROL
 # ============================================================
 
 def update_drive_control():
@@ -1630,7 +1495,9 @@ def update_drive_control():
     global tilt_danger_count
 
 
-    now = time.ticks_ms()
+    now = (
+        time.ticks_ms()
+    )
 
 
     dt = (
@@ -1643,7 +1510,9 @@ def update_drive_control():
     )
 
 
-    drive_last_time = now
+    drive_last_time = (
+        now
+    )
 
 
     if dt <= 0:
@@ -1656,18 +1525,10 @@ def update_drive_control():
         dt = 0.1
 
 
-    # ========================================================
-    # ACTIVE BRAKE OVERRIDE
-    # ========================================================
-
     if motor_brake_active:
 
         return
 
-
-    # ========================================================
-    # MODE
-    # ========================================================
 
     if current_mode != MODE_REMOTE:
 
@@ -1677,7 +1538,7 @@ def update_drive_control():
 
 
     # ========================================================
-    # MPU TILT SAFETY
+    # TILT SAFETY
     # ========================================================
 
     if mpu_available:
@@ -1708,12 +1569,10 @@ def update_drive_control():
 
 
             requested_left = 0.0
-
             requested_right = 0.0
 
 
             start_emergency_brake()
-
 
             safety_red_now()
 
@@ -1735,7 +1594,7 @@ def update_drive_control():
 
 
     # ========================================================
-    # CLIFF SAFETY
+    # CLIFF OVERRIDE
     # ========================================================
 
     if (
@@ -1757,7 +1616,6 @@ def update_drive_control():
             -CLIFF_BACKOFF_POWER
         )
 
-
         target_input_right = (
             -CLIFF_BACKOFF_POWER
         )
@@ -1775,27 +1633,14 @@ def update_drive_control():
 
     else:
 
-        # ====================================================
-        # IMPORTANT v1.0.11
-        #
-        # NO MOVE WATCHDOG.
-        #
-        # requested_left/right are persistent.
-        # ====================================================
-
         target_input_left = (
             requested_left
         )
-
 
         target_input_right = (
             requested_right
         )
 
-
-        # ====================================================
-        # WALL SAFETY
-        # ====================================================
 
         if front_obstacle:
 
@@ -1804,10 +1649,6 @@ def update_drive_control():
                 target_input_right
             ) / 2.0
 
-
-            # Prevent forward movement.
-            #
-            # Reverse / escape remains possible.
 
             if (
                 throttle_requested >
@@ -1835,11 +1676,13 @@ def update_drive_control():
     ) / 2.0
 
 
-    corrected_turn = turn
+    corrected_turn = (
+        turn
+    )
 
 
     # ========================================================
-    # MPU YAW RATE STABILIZATION
+    # MPU STABILIZATION
     # ========================================================
 
     if mpu_available:
@@ -1871,10 +1714,8 @@ def update_drive_control():
         else:
 
             desired_yaw_rate = (
-                turn
-                *
-                GYRO_TURN_MAX_DPS
-                *
+                turn *
+                GYRO_TURN_MAX_DPS *
                 speed_scale
             )
 
@@ -1906,10 +1747,6 @@ def update_drive_control():
         )
 
 
-    # ========================================================
-    # REBUILD MOTOR TARGET
-    # ========================================================
-
     target_left = clamp(
         throttle +
         corrected_turn,
@@ -1925,10 +1762,6 @@ def update_drive_control():
         1.0
     )
 
-
-    # ========================================================
-    # SPEED LIMIT
-    # ========================================================
 
     if (
         safety_state ==
@@ -1954,10 +1787,6 @@ def update_drive_control():
     )
 
 
-    # ========================================================
-    # SMOOTH ACCELERATION / DECELERATION
-    # ========================================================
-
     max_change = (
         DRIVE_RAMP_PER_SEC *
         dt
@@ -1970,7 +1799,6 @@ def update_drive_control():
     ):
 
         drive_left_output = min(
-
             target_left,
 
             drive_left_output +
@@ -1980,7 +1808,6 @@ def update_drive_control():
     else:
 
         drive_left_output = max(
-
             target_left,
 
             drive_left_output -
@@ -1994,7 +1821,6 @@ def update_drive_control():
     ):
 
         drive_right_output = min(
-
             target_right,
 
             drive_right_output +
@@ -2004,7 +1830,6 @@ def update_drive_control():
     else:
 
         drive_right_output = max(
-
             target_right,
 
             drive_right_output -
@@ -2021,14 +1846,9 @@ def update_drive_control():
     )
 
 
-    # ========================================================
-    # PHYSICAL MOTOR MAPPING
-    # ========================================================
-
     physical_left = (
         actual_right
     )
-
 
     physical_right = (
         -actual_left
@@ -2052,7 +1872,7 @@ def update_drive_control():
 
 
 # ============================================================
-# MOVEMENT NAME
+# MOVEMENT
 # ============================================================
 
 def movement_name():
@@ -2191,7 +2011,9 @@ def scale_led_color(
 
     if brightness is None:
 
-        brightness = led_brightness
+        brightness = (
+            led_brightness
+        )
 
 
     factor = clamp(
@@ -2243,7 +2065,9 @@ def set_all_leds(
         NEOPIXEL_COUNT
     ):
 
-        np[i] = color
+        np[i] = (
+            color
+        )
 
 
     np.write()
@@ -2268,7 +2092,6 @@ def color_wheel(
     if position < 170:
 
         position -= 85
-
 
         return (
             0,
@@ -2322,7 +2145,9 @@ def safety_led_required():
 
 def update_safety_led():
 
-    now = time.ticks_ms()
+    now = (
+        time.ticks_ms()
+    )
 
 
     phase = (
@@ -2354,7 +2179,9 @@ def update_safety_led():
 
 def update_led_animation():
 
-    now = time.ticks_ms()
+    now = (
+        time.ticks_ms()
+    )
 
 
     if safety_led_required():
@@ -2397,10 +2224,6 @@ def update_led_animation():
         period
     ) / period
 
-
-    # ========================================================
-    # HEARTBEAT PULSE
-    # ========================================================
 
     if led_animation == LED_PULSE:
 
@@ -2462,10 +2285,6 @@ def update_led_animation():
         return
 
 
-    # ========================================================
-    # RAINBOW
-    # ========================================================
-
     if led_animation == LED_RAINBOW:
 
         position = int(
@@ -2485,11 +2304,9 @@ def update_led_animation():
             )
 
 
-            r, g, b = (
-                color_wheel(
-                    position +
-                    offset
-                )
+            r, g, b = color_wheel(
+                position +
+                offset
             )
 
 
@@ -2502,13 +2319,8 @@ def update_led_animation():
 
         np.write()
 
-
         return
 
-
-    # ========================================================
-    # TRIPLE WHITE STROBE
-    # ========================================================
 
     if led_animation == LED_STROBE:
 
@@ -2553,10 +2365,6 @@ def update_led_animation():
 
         return
 
-
-    # ========================================================
-    # CHASE
-    # ========================================================
 
     if led_animation == LED_CHASE:
 
@@ -2610,13 +2418,8 @@ def update_led_animation():
 
         np.write()
 
-
         return
 
-
-    # ========================================================
-    # BREATHING
-    # ========================================================
 
     if (
         led_animation ==
@@ -2645,75 +2448,64 @@ def update_led_animation():
 
 
 # ============================================================
-# BATTERY
+# BATTERY - UPDATED FROM PICO LOGIC
 # ============================================================
 
 def read_battery():
 
     global battery_voltage
     global battery_percent
-
-    global battery_filtered_voltage
-    global battery_filter_ready
+    global battery_filtered
 
 
     try:
 
+        # Same small settling delay used in your Pico bot.
+        time.sleep_ms(
+            5
+        )
+
+
         total = 0
 
-        samples = 32
 
-
-        for _ in range(samples):
+        # Average 16 samples.
+        for _ in range(16):
 
             total += (
                 battery_adc.read_u16()
             )
 
+            time.sleep_us(
+                200
+            )
+
 
         raw = (
             total /
-            samples
+            16
         )
 
 
+        # Convert ADC reading to GPIO voltage.
         adc_voltage = (
-            raw /
-            65535.0
-        ) * ADC_REFERENCE_V
+            raw *
+            ADC_REFERENCE_V /
+            65535
+        )
 
 
-        measured_voltage = (
+        # Convert GPIO divider voltage back
+        # to real 2S battery voltage.
+        battery_voltage = (
             adc_voltage *
             BATTERY_ADC_FACTOR
         )
 
 
-        if not battery_filter_ready:
-
-            battery_filtered_voltage = (
-                measured_voltage
-            )
-
-            battery_filter_ready = True
-
-        else:
-
-            battery_filtered_voltage = (
-                battery_filtered_voltage *
-                0.85
-                +
-                measured_voltage *
-                0.15
-            )
-
-
-        battery_voltage = (
-            battery_filtered_voltage
-        )
-
-
-        percent = (
+        # Same linear percentage calculation
+        # as your working Pico bot.
+        pct = int(
             (
                 battery_voltage -
                 BATTERY_EMPTY_V
@@ -2723,15 +2515,63 @@ def read_battery():
                 BATTERY_FULL_V -
                 BATTERY_EMPTY_V
             )
-        ) * 100.0
+            *
+            100
+        )
 
 
-        battery_percent = int(
-            clamp(
-                percent,
-                0,
-                100
+        pct = max(
+            0,
+            min(
+                100,
+                pct
             )
+        )
+
+
+        # IMPORTANT:
+        #
+        # Do NOT start filtering from 100%.
+        #
+        # First reading becomes the actual
+        # initial percentage immediately.
+        if battery_filtered is None:
+
+            battery_filtered = (
+                pct
+            )
+
+        else:
+
+            battery_filtered = int(
+                battery_filtered *
+                0.9
+                +
+                pct *
+                0.1
+            )
+
+
+        battery_percent = (
+            battery_filtered
+        )
+
+
+        print(
+            "BAT RAW:",
+            int(raw),
+            "ADC:",
+            round(
+                adc_voltage,
+                3
+            ),
+            "V BAT:",
+            round(
+                battery_voltage,
+                2
+            ),
+            "V BAT%:",
+            battery_percent
         )
 
 
@@ -2835,14 +2675,10 @@ def read_sharp():
         )
 
 
-        # Fast value for safety.
-
         sharp_instant_cm = (
             new_distance
         )
 
-
-        # Filtered value for display.
 
         if not sharp_filter_ready:
 
@@ -2877,7 +2713,6 @@ def read_sharp():
 
 
         sharp_distance_cm = -1
-
         sharp_instant_cm = -1
 
 
@@ -2945,7 +2780,6 @@ def get_tof_reading():
                 value
             )
 
-
     except:
         pass
 
@@ -2956,16 +2790,13 @@ def get_tof_reading():
 def read_tof():
 
     global tof_distance_mm
-
     global floor_cliff
-
     global tof_valid
 
 
     if not tof_available:
 
         tof_distance_mm = -1
-
         tof_valid = False
 
         return
@@ -2976,15 +2807,6 @@ def read_tof():
     )
 
 
-    # ========================================================
-    # INVALID READING
-    #
-    # v1.0.11:
-    #
-    # Invalid does NOT equal cliff.
-    # Keep the previous floor/cliff state.
-    # ========================================================
-
     if (
         value <= 0
         or
@@ -2992,14 +2814,12 @@ def read_tof():
     ):
 
         tof_distance_mm = -1
-
         tof_valid = False
 
         return
 
 
     tof_valid = True
-
 
     tof_distance_mm = (
         value
@@ -3029,7 +2849,6 @@ def read_mpu():
     global mpu_yaw
 
     global gyro_z_dps
-
     global mpu_last_time
 
 
@@ -3080,9 +2899,7 @@ def read_mpu():
             ax_raw,
             ay_raw,
             az_raw,
-
             temp_raw,
-
             gx_raw,
             gy_raw,
             gz_raw
@@ -3179,26 +2996,17 @@ def read_mpu():
 
 def mode_name():
 
-    if (
-        current_mode ==
-        MODE_REMOTE
-    ):
+    if current_mode == MODE_REMOTE:
 
         return "REMOTE"
 
 
-    if (
-        current_mode ==
-        MODE_TRACKING
-    ):
+    if current_mode == MODE_TRACKING:
 
         return "TRACK"
 
 
-    if (
-        current_mode ==
-        MODE_AUTO
-    ):
+    if current_mode == MODE_AUTO:
 
         return "AUTO"
 
@@ -3207,13 +3015,11 @@ def mode_name():
 
 
 # ============================================================
-# BLE UUIDS
+# BLE
 # ============================================================
 
 _IRQ_CENTRAL_CONNECT = 1
-
 _IRQ_CENTRAL_DISCONNECT = 2
-
 _IRQ_GATTS_WRITE = 3
 
 
@@ -3277,10 +3083,6 @@ ble.gatts_set_buffer(
     True
 )
 
-
-# ============================================================
-# BLE SEND
-# ============================================================
 
 def ble_send(
     message
@@ -3412,16 +3214,10 @@ def send_led_state():
 def send_config():
 
     ble_send(
-        "CFG,{:.5f},{:.5f},{:.5f},{},{}\n".format(
-
+        "CFG,{:.5f},{:.5f},{},{}\n".format(
             pid_p,
-
             pid_i,
-
-            pid_d,
-
             max_speed,
-
             current_mode
         )
     )
@@ -3614,134 +3410,6 @@ def update_oled():
 
 
 # ============================================================
-# MOVEMENT DISPLAY
-# ============================================================
-
-def movement_name():
-
-    if (
-        safety_state ==
-        SAFETY_CLIFF_BRAKE
-    ):
-
-        return "CLIFF STOP"
-
-
-    if (
-        safety_state ==
-        SAFETY_CLIFF_BACKOFF
-    ):
-
-        return "CLIFF BACK"
-
-
-    if (
-        safety_state ==
-        SAFETY_CLIFF_HOLD
-    ):
-
-        return "CLIFF HOLD"
-
-
-    if front_obstacle:
-
-        return "WALL STOP"
-
-
-    left = requested_left
-
-    right = requested_right
-
-
-    if (
-        abs(left) < 0.03
-        and
-        abs(right) < 0.03
-    ):
-
-        return "STOP"
-
-
-    if (
-        left > 0.03
-        and
-        right > 0.03
-    ):
-
-        if abs(
-            left-right
-        ) < 0.10:
-
-            return "FORWARD"
-
-
-        if left > right:
-
-            return "RIGHT"
-
-
-        return "LEFT"
-
-
-    if (
-        left < -0.03
-        and
-        right < -0.03
-    ):
-
-        if abs(
-            abs(left) -
-            abs(right)
-        ) < 0.10:
-
-            return "REVERSE"
-
-
-        return "REV TURN"
-
-
-    if (
-        left > 0.03
-        and
-        right < -0.03
-    ):
-
-        return "SPIN RIGHT"
-
-
-    if (
-        left < -0.03
-        and
-        right > 0.03
-    ):
-
-        return "SPIN LEFT"
-
-
-    if left > 0.03:
-
-        return "LEFT FWD"
-
-
-    if right > 0.03:
-
-        return "RIGHT FWD"
-
-
-    if left < -0.03:
-
-        return "LEFT REV"
-
-
-    if right < -0.03:
-
-        return "RIGHT REV"
-
-
-    return "MOVE"
-
-
-# ============================================================
 # COMMAND PROCESSING
 # ============================================================
 
@@ -3750,14 +3418,11 @@ def process_command(
 ):
 
     global current_mode
-
     global max_speed
-
 
     global pid_p
     global pid_i
     global pid_d
-
 
     global led_r
     global led_g
@@ -3783,10 +3448,6 @@ def process_command(
         command
     )
 
-
-    # ========================================================
-    # FIRMWARE VERSION
-    # ========================================================
 
     if command == "FW?":
 
@@ -3947,10 +3608,6 @@ def process_command(
         return
 
 
-    # ========================================================
-    # STOP
-    # ========================================================
-
     if command == "STOP":
 
         stop_motors()
@@ -3994,7 +3651,6 @@ def process_command(
 
 
             send_mode()
-
             send_config()
 
 
@@ -4031,7 +3687,6 @@ def process_command(
 
 
             mark_settings_dirty()
-
 
             send_config()
 
@@ -4080,7 +3735,6 @@ def process_command(
 
 
                 save_current_settings()
-
 
                 send_config()
 
@@ -4172,9 +3826,7 @@ def process_command(
 
             reset_led_animation()
 
-
             save_current_settings()
-
 
             send_led_state()
 
@@ -4189,10 +3841,6 @@ def process_command(
 
         return
 
-
-    # ========================================================
-    # LED COLOR
-    # ========================================================
 
     if command.startswith(
         "LEDCOLOR,"
@@ -4239,9 +3887,7 @@ def process_command(
 
             reset_led_animation()
 
-
             save_current_settings()
-
 
             send_led_state()
 
@@ -4256,10 +3902,6 @@ def process_command(
 
         return
 
-
-    # ========================================================
-    # LED BRIGHTNESS
-    # ========================================================
 
     if command.startswith(
         "LEDBRIGHT,"
@@ -4280,7 +3922,6 @@ def process_command(
 
             save_current_settings()
 
-
             send_led_state()
 
 
@@ -4294,10 +3935,6 @@ def process_command(
 
         return
 
-
-    # ========================================================
-    # LED ANIMATION
-    # ========================================================
 
     if command.startswith(
         "LEDANIM,"
@@ -4318,9 +3955,7 @@ def process_command(
 
             reset_led_animation()
 
-
             save_current_settings()
-
 
             send_led_state()
 
@@ -4335,10 +3970,6 @@ def process_command(
 
         return
 
-
-    # ========================================================
-    # LED SPEED
-    # ========================================================
 
     if command.startswith(
         "LEDSPEED,"
@@ -4359,9 +3990,7 @@ def process_command(
 
             reset_led_animation()
 
-
             save_current_settings()
-
 
             send_led_state()
 
@@ -4489,7 +4118,6 @@ def ble_irq(
 ):
 
     global ble_connected
-
     global rx_buffer
 
 
@@ -4512,15 +4140,10 @@ def ble_irq(
 
 
         send_mode()
-
         send_config()
-
         send_led_state()
-
         send_sensor_telemetry()
-
         send_battery()
-
         send_mpu()
 
 
@@ -4540,11 +4163,10 @@ def ble_irq(
 
 
         ble_connected = (
-            len(connections) > 0
+            len(connections) >
+            0
         )
 
-
-        # Disconnect always stops robot.
 
         stop_motors()
 
@@ -4655,6 +4277,7 @@ coast_motor_stop()
 reset_led_animation()
 
 
+# Battery is read before OLED starts displaying battery %.
 read_battery()
 
 
@@ -4686,19 +4309,18 @@ start_advertising()
 # TIMERS
 # ============================================================
 
-now = time.ticks_ms()
+now = (
+    time.ticks_ms()
+)
 
 
 sharp_last = now
-
 tof_last = now
 
 telemetry_last = now
-
 mpu_telemetry_last = now
 
 battery_last = now
-
 oled_last = now
 
 
@@ -4714,21 +4336,21 @@ while True:
 
 
     # ========================================================
-    # MOTOR BRAKE TIMER
+    # BRAKE TIMER
     # ========================================================
 
     update_emergency_brake()
 
 
     # ========================================================
-    # MPU LOCAL FEEDBACK
+    # MPU
     # ========================================================
 
     read_mpu()
 
 
     # ========================================================
-    # FRONT COLLISION
+    # FRONT SAFETY
     # ========================================================
 
     if time.ticks_diff(
@@ -4741,12 +4363,11 @@ while True:
 
         read_sharp()
 
-
         update_front_safety()
 
 
     # ========================================================
-    # CLIFF
+    # CLIFF SAFETY
     # ========================================================
 
     if time.ticks_diff(
@@ -4758,7 +4379,6 @@ while True:
 
 
         read_tof()
-
 
         update_cliff_safety()
 
@@ -4802,7 +4422,7 @@ while True:
 
 
     # ========================================================
-    # FAST SENSOR TELEMETRY
+    # SENSOR TELEMETRY
     # ========================================================
 
     if time.ticks_diff(
