@@ -1,4 +1,4 @@
-$file = ".\BlueBot_v1.0.12.py"
+$file = ".\BlueBot_v1.0.13.py"
 $size = (Get-Item $file).Length
 $hash = (Get-FileHash $file -Algorithm SHA256).Hash.ToLower()
 
