@@ -246,12 +246,15 @@ SAFETY_FLASH_PERIOD_MS = 300
 # BATTERY
 # ============================================================
 
-ADC_REFERENCE_V = 3.30
-
 BATTERY_ADC_FACTOR = 4.3333
 
-BATTERY_EMPTY_V = 6.0
-BATTERY_FULL_V = 8.4
+BATTERY_FULL_V = 8.40
+BATTERY_EMPTY_V = 6.20
+
+battery_voltage = 0.0
+battery_percent = 0
+
+battery_voltage_filtered = None
 
 
 # ============================================================
@@ -700,15 +703,6 @@ mpu_last_time = (
 )
 
 
-# ============================================================
-# BATTERY
-# ============================================================
-
-battery_voltage = 0.0
-
-battery_percent = 0
-
-battery_filtered = None
 
 
 # ============================================================
@@ -3803,53 +3797,75 @@ def update_led_animation():
 # ============================================================
 # BATTERY
 # ============================================================
-
 def read_battery():
 
     global battery_voltage
     global battery_percent
-    global battery_filtered
-
+    global battery_voltage_filtered
 
     try:
 
-        time.sleep_ms(5)
+        total_uv = 0
+        samples = 16
 
 
-        total = 0
+        for _ in range(samples):
+
+            # ESP32 calibrated ADC reading in microvolts
+            total_uv += battery_adc.read_uv()
+
+            time.sleep_us(200)
 
 
-        for _ in range(16):
-
-            total += (
-                battery_adc.read_u16()
-            )
-
-            time.sleep_us(
-                200
-            )
-
-
-        raw = (
-            total /
-            16
+        avg_uv = (
+            total_uv /
+            samples
         )
 
 
         adc_voltage = (
-            raw *
-            ADC_REFERENCE_V /
-            65535
+            avg_uv /
+            1000000.0
         )
 
 
-        battery_voltage = (
+        measured_battery = (
             adc_voltage *
             BATTERY_ADC_FACTOR
         )
 
 
-        pct = int(
+        # ----------------------------------------------------
+        # FILTER THE VOLTAGE, NOT THE PERCENTAGE
+        # ----------------------------------------------------
+
+        if battery_voltage_filtered is None:
+
+            battery_voltage_filtered = (
+                measured_battery
+            )
+
+        else:
+
+            # Respond reasonably quickly but prevent
+            # motor noise / ADC glitches causing huge jumps.
+            battery_voltage_filtered = (
+                battery_voltage_filtered * 0.85
+                +
+                measured_battery * 0.15
+            )
+
+
+        battery_voltage = (
+            battery_voltage_filtered
+        )
+
+
+        # ----------------------------------------------------
+        # PERCENTAGE
+        # ----------------------------------------------------
+
+        pct = (
             (
                 battery_voltage -
                 BATTERY_EMPTY_V
@@ -3859,58 +3875,31 @@ def read_battery():
                 BATTERY_FULL_V -
                 BATTERY_EMPTY_V
             )
-            *
-            100
-        )
+        ) * 100.0
 
 
-        pct = max(
-            0,
-            min(
-                100,
-                pct
+        battery_percent = int(
+            clamp(
+                pct,
+                0,
+                100
             )
-        )
-
-
-        if battery_filtered is None:
-
-            battery_filtered = (
-                pct
-            )
-
-        else:
-
-            battery_filtered = int(
-                battery_filtered *
-                0.9
-                +
-                pct *
-                0.1
-            )
-
-
-        battery_percent = (
-            battery_filtered
         )
 
 
         print(
-            "BAT RAW:",
-            int(raw),
-            "ADC:",
+            "BAT ADC:",
             round(
                 adc_voltage,
                 3
             ),
-            "BAT:",
+            "V  BAT:",
             round(
                 battery_voltage,
                 2
             ),
-            "V",
-            battery_percent,
-            "%"
+            "V  %",
+            battery_percent
         )
 
 
@@ -3920,7 +3909,6 @@ def read_battery():
             "Battery error:",
             e
         )
-
 
 # ============================================================
 # SHARP GP2Y0E03
