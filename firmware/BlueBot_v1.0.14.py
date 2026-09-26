@@ -873,7 +873,7 @@ def read_battery():
         pct = ((battery_voltage - BATTERY_EMPTY_V) / (BATTERY_FULL_V - BATTERY_EMPTY_V)) * 100.0
         battery_percent = int(clamp(pct, 0, 100))
 
-        print("BAT ADC:", round(adc_v,3), "BAT:", round(battery_voltage,2), "V", battery_percent, "%")
+        #print("BAT ADC:", round(adc_v,3), "BAT:", round(battery_voltage,2), "V", battery_percent, "%")
     except Exception as e:
         print("Battery error:", e)
 
