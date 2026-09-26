@@ -1226,16 +1226,13 @@ def ble_irq(event,data):
         send_battery()
         send_mpu()
 
-    elif event == _IRQ_CENTRAL_DISCONNECT:
-        conn,_,_ = data
+    elif event==_IRQ_CENTRAL_DISCONNECT:
+        conn,_,_=data
         connections.discard(conn)
-        ble_connected = len(connections) > 0
+        ble_connected=len(connections)>0
         absolute_stop()
         update_oled()
-
-        if not ota.reboot_requested:
-            start_advertising()
-    
+        start_advertising()
 
     elif event==_IRQ_GATTS_WRITE:
         _,attr=data
@@ -1313,10 +1310,14 @@ while True:
     # OTA reset must happen OUTSIDE the BLE IRQ callback.
     # ota.finish() only sets reboot_requested=True and returns.
     if ota.reboot_requested:
-        ota.reboot_requested = False
+        # IMPORTANT:
+        # Keep reboot_requested=True until soft_reset happens.
+        # During soft reset, BLE may generate a disconnect IRQ.
+        # ble_irq() checks ota.reboot_requested and must see True,
+        # otherwise it tries to advertise during shutdown and prints:
+        # Advertising error: -30
         print("OTA complete - soft rebooting outside BLE IRQ...")
         time.sleep_ms(250)
         machine.soft_reset()
 
     time.sleep_ms(2)
-
