@@ -874,7 +874,7 @@ def read_battery():
         pct = ((battery_voltage - BATTERY_EMPTY_V) / (BATTERY_FULL_V - BATTERY_EMPTY_V)) * 100.0
         battery_percent = int(clamp(pct, 0, 100))
 
-        print("BAT ADC:", round(adc_v,3), "BAT:", round(battery_voltage,2), "V", battery_percent, "%")
+        #print("BAT ADC:", round(adc_v,3), "BAT:", round(battery_voltage,2), "V", battery_percent, "%")
     except Exception as e:
         print("Battery error:", e)
 
@@ -1226,13 +1226,16 @@ def ble_irq(event,data):
         send_battery()
         send_mpu()
 
-    elif event==_IRQ_CENTRAL_DISCONNECT:
-        conn,_,_=data
+    elif event == _IRQ_CENTRAL_DISCONNECT:
+        conn,_,_ = data
         connections.discard(conn)
-        ble_connected=len(connections)>0
+        ble_connected = len(connections) > 0
         absolute_stop()
         update_oled()
-        start_advertising()
+
+        if not ota.reboot_requested:
+            start_advertising()
+    
 
     elif event==_IRQ_GATTS_WRITE:
         _,attr=data
@@ -1316,3 +1319,4 @@ while True:
         machine.soft_reset()
 
     time.sleep_ms(2)
+
