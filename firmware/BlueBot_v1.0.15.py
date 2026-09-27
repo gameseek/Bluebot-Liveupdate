@@ -1307,46 +1307,5 @@ while True:
     if settings_dirty and time.ticks_diff(now,settings_dirty_since)>=SETTINGS_SAVE_DELAY_MS:
         save_current_settings()
 
-    if ota.reboot_requested:
-
-        print("OTA complete - preparing clean BLE shutdown...")
-
-        # Stop BLE IRQ callbacks first.
-        try:
-            ble.irq(None)
-        except Exception as e:
-            print("BLE IRQ disable:", e)
-
-        # Stop advertising.
-        try:
-            ble.gap_advertise(None)
-        except:
-            pass
-
-        # Disconnect any connected phone/app.
-        for conn in list(connections):
-            try:
-                ble.gap_disconnect(conn)
-            except:
-                pass
-
-        time.sleep_ms(200)
-
-        # Now shut down NimBLE/HCI.
-        try:
-            ble.active(False)
-            print("BLE stopped")
-        except Exception as e:
-            print("BLE stop error:", e)
-
-        connections.clear()
-
-        import gc
-        gc.collect()
-
-        time.sleep_ms(300)
-
-        print("Soft rebooting...")
-        machine.soft_reset()
-
     time.sleep_ms(2)
+
