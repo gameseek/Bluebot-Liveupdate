@@ -529,6 +529,7 @@ def update_auto_turn():
         return False
 
     now = time.ticks_ms()
+    turn_power = AUTO_TURN_POWER
 
     if mpu_available:
         turned = abs(angle_diff(mpu_yaw, auto_turn_start_yaw))
@@ -538,14 +539,8 @@ def update_auto_turn():
             set_auto_target(0, 0)
             return True
 
-        turn_power = (
-            AUTO_TURN_SLOW_POWER
-            if remaining <= AUTO_TURN_SLOW_AT_DEG
-            else AUTO_TURN_POWER
-        )
-
-    else:
-        turn_power = AUTO_TURN_POWER
+        if remaining <= AUTO_TURN_SLOW_AT_DEG:
+            turn_power = AUTO_TURN_SLOW_POWER
 
     if time.ticks_diff(now, auto_turn_start_time) >= AUTO_TURN_TIMEOUT_MS:
         print("AUTO TURN TIMEOUT")
@@ -561,17 +556,14 @@ def update_auto_turn():
 
 def start_autonomous():
     global auto_running, auto_state, auto_heading, auto_heading_correction, app_stop_latched
-
     if current_mode != MODE_AUTO:
         print("AUTOSTART ignored - use MODE,3 first")
         return
-
     app_stop_latched = False
     auto_running = True
     auto_state = AUTO_FORWARD
     auto_heading = mpu_yaw
     auto_heading_correction = 0.0
-
     set_auto_target(0, 0)
     print("AUTONOMOUS START")
 
@@ -599,10 +591,9 @@ def update_autonomous():
     now = time.ticks_ms()
 
     # ------------------------------------------------------------
-    # NORMAL FORWARD
+    # FORWARD
     # ------------------------------------------------------------
     if auto_state == AUTO_FORWARD:
-
         if front_obstacle:
             set_auto_target(0, 0)
             auto_state = AUTO_WALL_BRAKE
@@ -611,12 +602,12 @@ def update_autonomous():
             return
 
         speed = clamp(max_speed / 100.0, 0, 1)
-
         correction_target = 0.0
 
         if mpu_available:
             heading_error = angle_diff(auto_heading, mpu_yaw)
 
+            # Ignore tiny yaw changes to prevent left/right hunting.
             if abs(heading_error) > AUTO_HEADING_DEADBAND:
                 correction_target = clamp(
                     heading_error * AUTO_HEADING_KP,
@@ -624,8 +615,7 @@ def update_autonomous():
                     AUTO_MAX_HEADING_CORRECTION
                 )
 
-        # Low-pass the heading correction so the motors do not hunt
-        # left/right around the target heading.
+        # Slowly blend correction instead of changing motor balance abruptly.
         auto_heading_correction += (
             correction_target - auto_heading_correction
         ) * AUTO_HEADING_FILTER
@@ -637,7 +627,7 @@ def update_autonomous():
         return
 
     # ------------------------------------------------------------
-    # BRAKE, THEN BACK AWAY FROM WALL
+    # WALL: BRAKE AND REVERSE
     # ------------------------------------------------------------
     if auto_state == AUTO_WALL_BRAKE:
         set_auto_target(0, 0)
@@ -649,10 +639,7 @@ def update_autonomous():
         return
 
     if auto_state == AUTO_WALL_REVERSE:
-        set_auto_target(
-            -AUTO_WALL_REVERSE_POWER,
-            -AUTO_WALL_REVERSE_POWER
-        )
+        set_auto_target(-AUTO_WALL_REVERSE_POWER, -AUTO_WALL_REVERSE_POWER)
 
         if time.ticks_diff(now, auto_state_start) >= AUTO_WALL_REVERSE_MS:
             auto_brake()
@@ -662,10 +649,7 @@ def update_autonomous():
         return
 
     # ------------------------------------------------------------
-    # CHECK LEFT FIRST.
-    #
-    # If left is open, go left immediately.
-    # Only check right if left is blocked.
+    # CHECK LEFT FIRST
     # ------------------------------------------------------------
     if auto_state == AUTO_SCAN_PREP:
         set_auto_target(0, 0)
@@ -694,21 +678,12 @@ def update_autonomous():
         if time.ticks_diff(now, auto_state_start) < AUTO_SCAN_SETTLE_MS:
             return
 
-        auto_left_distance = (
-            sharp_instant_cm
-            if sharp_instant_cm >= 0
-            else 0
-        )
+        auto_left_distance = sharp_instant_cm if sharp_instant_cm >= 0 else 0
+        print("AUTO LEFT:", round(auto_left_distance, 1), "cm")
 
-        print(
-            "AUTO LEFT:",
-            round(auto_left_distance, 1),
-            "cm"
-        )
-
-        # LEFT IS OPEN: do not scan the other side.
+        # If left is open, do not scan right.
         if auto_left_distance >= AUTO_MIN_CLEAR_CM:
-            print("LEFT OPEN -> GO LEFT")
+            print("LEFT OPEN -> FORWARD")
 
             front_obstacle = False
             front_danger_count = 0
@@ -718,28 +693,20 @@ def update_autonomous():
             auto_heading_correction = 0.0
             auto_state = AUTO_FORWARD
             auto_state_start = now
-
             reset_led_animation()
             return
 
-        # LEFT BLOCKED: now check the other side.
+        # Left blocked. We are ~45 degrees left of the original direction.
+        # Turn ~90 degrees right to look ~45 degrees right.
         print("LEFT BLOCKED -> CHECK RIGHT")
-
-        # We are already about 45 degrees left, so rotate roughly 90
-        # degrees right to look 45 degrees to the right of the original path.
-        begin_auto_turn(
-            1,
-            AUTO_SCAN_ANGLE_DEG * 2.0
-        )
-
+        begin_auto_turn(1, AUTO_SCAN_ANGLE_DEG * 2.0)
         auto_state = AUTO_SCAN_RIGHT
         return
 
     # ------------------------------------------------------------
-    # RIGHT SIDE IS CHECKED ONLY IF LEFT WAS BLOCKED.
+    # CHECK RIGHT ONLY IF LEFT WAS BLOCKED
     # ------------------------------------------------------------
     if auto_state == AUTO_SCAN_RIGHT:
-
         if motor_brake_active:
             return
 
@@ -758,20 +725,11 @@ def update_autonomous():
         if time.ticks_diff(now, auto_state_start) < AUTO_SCAN_SETTLE_MS:
             return
 
-        auto_right_distance = (
-            sharp_instant_cm
-            if sharp_instant_cm >= 0
-            else 0
-        )
-
-        print(
-            "AUTO RIGHT:",
-            round(auto_right_distance, 1),
-            "cm"
-        )
+        auto_right_distance = sharp_instant_cm if sharp_instant_cm >= 0 else 0
+        print("AUTO RIGHT:", round(auto_right_distance, 1), "cm")
 
         if auto_right_distance >= AUTO_MIN_CLEAR_CM:
-            print("RIGHT OPEN -> GO RIGHT")
+            print("RIGHT OPEN -> FORWARD")
 
             front_obstacle = False
             front_danger_count = 0
@@ -781,43 +739,30 @@ def update_autonomous():
             auto_heading_correction = 0.0
             auto_state = AUTO_FORWARD
             auto_state_start = now
-
             reset_led_animation()
             return
 
-        # BOTH SIDES BLOCKED:
-        # back away more, then make a controlled ~80 degree escape turn.
+        # Both directions blocked.
         print("BOTH SIDES BLOCKED -> ESCAPE")
-
         auto_escape_direction *= -1
         auto_state = AUTO_ESCAPE_REVERSE
         auto_state_start = now
         return
 
     # ------------------------------------------------------------
-    # ESCAPE ONLY WHEN BOTH SIDES ARE BLOCKED.
-    # No more ~150 degree loop/spin.
+    # ESCAPE - only used if both checked directions are blocked.
     # ------------------------------------------------------------
     if auto_state == AUTO_ESCAPE_REVERSE:
-        set_auto_target(
-            -AUTO_ESCAPE_REVERSE_POWER,
-            -AUTO_ESCAPE_REVERSE_POWER
-        )
+        set_auto_target(-AUTO_ESCAPE_REVERSE_POWER, -AUTO_ESCAPE_REVERSE_POWER)
 
         if time.ticks_diff(now, auto_state_start) >= AUTO_ESCAPE_REVERSE_MS:
             auto_brake()
-
-            begin_auto_turn(
-                auto_escape_direction,
-                AUTO_ESCAPE_TURN_DEG
-            )
-
+            begin_auto_turn(auto_escape_direction, AUTO_ESCAPE_TURN_DEG)
             auto_state = AUTO_ESCAPE_TURN
             print("AUTO ESCAPE TURN")
         return
 
     if auto_state == AUTO_ESCAPE_TURN:
-
         if motor_brake_active:
             return
 
@@ -832,7 +777,6 @@ def update_autonomous():
             auto_heading_correction = 0.0
             auto_state = AUTO_FORWARD
             auto_state_start = now
-
             reset_led_animation()
 
             print("AUTO ESCAPE COMPLETE -> FORWARD")
@@ -1004,9 +948,10 @@ def read_battery():
             total_uv += battery_adc.read_uv()
             time.sleep_us(150)
 
-        # This is the actual voltage measured at GPIO0, before divider correction.
+        # Raw voltage physically seen at GPIO0.
         battery_adc_voltage = (total_uv / 16) / 1000000.0
 
+        # Existing v1.0.15 divider calculation remains unchanged.
         measured_v = battery_adc_voltage * BATTERY_ADC_FACTOR
 
         if battery_voltage_filtered is None:
@@ -1015,12 +960,7 @@ def read_battery():
             battery_voltage_filtered = battery_voltage_filtered * 0.85 + measured_v * 0.15
 
         battery_voltage = battery_voltage_filtered
-
-        pct = (
-            (battery_voltage - BATTERY_EMPTY_V)
-            / (BATTERY_FULL_V - BATTERY_EMPTY_V)
-        ) * 100.0
-
+        pct = ((battery_voltage - BATTERY_EMPTY_V) / (BATTERY_FULL_V - BATTERY_EMPTY_V)) * 100.0
         battery_percent = int(clamp(pct, 0, 100))
 
         print(
@@ -1031,7 +971,6 @@ def read_battery():
             "V  %:",
             battery_percent
         )
-
     except Exception as e:
         print("Battery error:", e)
 
@@ -1464,17 +1403,6 @@ while True:
     if settings_dirty and time.ticks_diff(now,settings_dirty_since)>=SETTINGS_SAVE_DELAY_MS:
         save_current_settings()
 
-    # OTA reset must happen OUTSIDE the BLE IRQ callback.
-    # ota.finish() only sets reboot_requested=True and returns.
-    if ota.reboot_requested:
-        # IMPORTANT:
-        # Keep reboot_requested=True until soft_reset happens.
-        # During soft reset, BLE may generate a disconnect IRQ.
-        # ble_irq() checks ota.reboot_requested and must see True,
-        # otherwise it tries to advertise during shutdown and prints:
-        # Advertising error: -30
-        print("OTA complete - soft rebooting outside BLE IRQ...")
-        time.sleep_ms(250)
-        machine.soft_reset()
-
     time.sleep_ms(2)
+
+
