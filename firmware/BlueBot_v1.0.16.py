@@ -39,6 +39,7 @@ except:
 
 DEVICE_NAME = "BluBot"
 SETTINGS_FILE = "settings.json"
+OTA_PENDING_FILE = "ota_pending.flag"
 
 MODE_REMOTE = 1
 MODE_TRACKING = 2
@@ -1345,6 +1346,14 @@ def ble_irq(event,data):
 
 ble.irq(ble_irq)
 
+def confirm_firmware_boot():
+    try:
+        if OTA_PENDING_FILE in os.listdir():
+            os.remove(OTA_PENDING_FILE)
+            print("Firmware boot confirmed - rollback disarmed")
+    except Exception as e:
+        print("Boot confirmation error:", e)
+
 print("BluBot Firmware",FIRMWARE_VERSION)
 coast_motor_stop()
 reset_led_animation()
@@ -1357,6 +1366,9 @@ read_mpu()
 update_led_animation()
 update_oled()
 start_advertising()
+
+# Startup completed successfully. Disarm OTA rollback.
+confirm_firmware_boot()
 
 now=time.ticks_ms()
 sharp_last=tof_last=mpu_control_last=telemetry_last=mpu_telemetry_last=battery_last=oled_last=now
