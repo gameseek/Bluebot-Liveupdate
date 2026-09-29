@@ -1,51 +1,34 @@
-# I2C
 SDA_PIN = 20
 SCL_PIN = 21
-
-# TB6612 Motor Driver
 PWMA_PIN = 4
 PWMB_PIN = 3
-
 AIN1_PIN = 10
 AIN2_PIN = 7
-
 BIN1_PIN = 6
 BIN2_PIN = 5
-
-# WS2812B
 NEOPIXEL_PIN = 1
 NEOPIXEL_COUNT = 2
-
-# Sharp GP2Y0E03 Analog
 SHARP_PIN = 2
-
-# Battery ADC
 BATTERY_PIN = 0
-
 FIRMWARE_VERSION = "1.0.19"
 SETTINGS_VERSION = "1.0.2"
-
 from machine import Pin, PWM, ADC, SoftI2C
 import machine
 import bluetooth, neopixel, time, math, json, os, struct
 import ssd1306
 from ota import OTAUpdater
-
 try:
     from VL53L0X_V1 import VL53L0X
     VL53_AVAILABLE = True
 except:
     VL53_AVAILABLE = False
-
 DEVICE_NAME = "BluBot"
 SETTINGS_FILE = "settings.json"
 OTA_PENDING_FILE = "ota_pending.flag"
-
 MODE_REMOTE = 1
 MODE_TRACKING = 2
 MODE_AUTO = 3
 MODE_PATH = 4
-
 LED_OFF = 0
 LED_SOLID = 1
 LED_PULSE = 2
@@ -53,7 +36,6 @@ LED_RAINBOW = 3
 LED_STROBE = 4
 LED_CHASE = 5
 LED_BREATHING = 6
-
 SHARP_INTERVAL_MS = 10
 TOF_INTERVAL_MS = 10
 MPU_CONTROL_INTERVAL_MS = 10
@@ -62,15 +44,12 @@ MPU_TELEMETRY_INTERVAL_MS = 100
 BATTERY_INTERVAL_MS = 1000
 OLED_INTERVAL_MS = 100
 SETTINGS_SAVE_DELAY_MS = 1500
-
 EMERGENCY_BRAKE_MS = 90
-
 FRONT_HARD_STOP_CM = 15.0
 FRONT_MAX_BRAKE_CM = 40.0
 FRONT_CLEAR_CM = 22.0
 FRONT_CLEAR_COUNT = 2
 FRONT_CONFIRM_COUNT = 1
-
 CLIFF_THRESHOLD_MM = 120
 CLIFF_CONFIRM_COUNT = 1
 TOF_INVALID_CLIFF_COUNT = 2
@@ -78,12 +57,10 @@ CLIFF_BRAKE_MS = 35
 CLIFF_BACKOFF_MS = 650
 CLIFF_BACKOFF_POWER = 0.55
 CLIFF_HOLD_MS = 150
-
 SAFETY_NORMAL = 0
 SAFETY_CLIFF_BRAKE = 1
 SAFETY_CLIFF_BACKOFF = 2
 SAFETY_CLIFF_HOLD = 3
-
 DRIVE_RAMP_PER_SEC = 3.0
 GYRO_TURN_MAX_DPS = 160.0
 GYRO_STEER_KP = 0.22
@@ -92,7 +69,6 @@ GYRO_Z_SIGN = 1.0
 STRAIGHT_DEADZONE = 0.08
 TILT_STOP_DEG = 55.0
 TILT_CONFIRM_COUNT = 5
-
 AUTO_IDLE = 0
 AUTO_FORWARD = 1
 AUTO_WALL_BRAKE = 2
@@ -108,7 +84,6 @@ AUTO_CHOOSE_PATH = 11
 AUTO_TURN_CHOSEN = 12
 AUTO_ESCAPE_REVERSE = 13
 AUTO_ESCAPE_TURN = 14
-
 AUTO_TURN_POWER = 0.30
 AUTO_TURN_SLOW_POWER = 0.20
 AUTO_TURN_SLOW_AT_DEG = 15.0
@@ -130,30 +105,23 @@ PATH_MAX=40
 PATH_CMPS=45.0
 PATH_AVOID_BACK_MS=250
 PATH_AVOID_BACK_POWER=.35
-
 SAFETY_FLASH_PERIOD_MS = 300
-
-# Battery: measured divider ratio 8.41V / 1.94V ~= 4.335
 BATTERY_ADC_FACTOR = 4.3333
 BATTERY_EMPTY_V = 6.0
 BATTERY_FULL_V = 8.4
-
 DEFAULT_SETTINGS = {
     "settings_version": SETTINGS_VERSION, "mode": MODE_REMOTE, "speed": 75,
     "p": 0.0, "i": 0.0, "d": 0.0,
     "led_r": 255, "led_g": 255, "led_b": 255,
     "led_brightness": 100, "led_animation": LED_STROBE, "led_speed": 1000
 }
-
 def clamp(v, lo, hi):
     return lo if v < lo else hi if v > hi else v
-
 def angle_diff(a, b):
     d = a - b
     while d > 180: d -= 360
     while d < -180: d += 360
     return d
-
 def write_settings(data):
     try:
         with open(SETTINGS_FILE, "w") as f: json.dump(data, f)
@@ -161,12 +129,10 @@ def write_settings(data):
     except Exception as e:
         print("Settings write error:", e)
         return False
-
 def create_default_settings():
     d = DEFAULT_SETTINGS.copy()
     write_settings(d)
     return d
-
 def migrate_settings(d):
     changed = False
     for k in DEFAULT_SETTINGS:
@@ -176,7 +142,6 @@ def migrate_settings(d):
     d["settings_version"] = SETTINGS_VERSION
     if changed: write_settings(d)
     return d
-
 def load_settings():
     try:
         if SETTINGS_FILE not in os.listdir(): return create_default_settings()
@@ -184,7 +149,6 @@ def load_settings():
     except Exception as e:
         print("Settings load error:", e)
         return create_default_settings()
-
 settings = load_settings()
 current_mode = int(settings["mode"])
 max_speed = int(settings["speed"])
@@ -195,7 +159,6 @@ led_animation = int(settings["led_animation"])
 led_speed = int(settings["led_speed"])
 settings_dirty = False
 settings_dirty_since = 0
-
 def save_current_settings():
     global settings_dirty
     write_settings({
@@ -205,32 +168,26 @@ def save_current_settings():
         "led_brightness": int(led_brightness), "led_animation": int(led_animation), "led_speed": int(led_speed)
     })
     settings_dirty = False
-
 def mark_settings_dirty():
     global settings_dirty, settings_dirty_since
     settings_dirty = True
     settings_dirty_since = time.ticks_ms()
-
 requested_left = requested_right = 0.0
 actual_left = actual_right = 0.0
 drive_left_output = drive_right_output = 0.0
 drive_last_time = time.ticks_ms()
 app_stop_latched = False
-
 motor_brake_active = False
 motor_brake_start = 0
-
 front_obstacle = False
 front_danger_count = 0
 front_clear_count = 0
-
 safety_state = SAFETY_NORMAL
 safety_state_start = time.ticks_ms()
 cliff_danger_count = 0
 tof_invalid_count = 0
 cliff_backoff_allowed = False
 tilt_danger_count = 0
-
 auto_running = False
 auto_state = AUTO_IDLE
 auto_state_start = time.ticks_ms()
@@ -244,72 +201,57 @@ auto_turn_degrees = 0.0
 auto_turn_start_yaw = 0.0
 auto_turn_start_time = 0
 auto_escape_direction = -1
-
 path=[]
 path_running=path_returning=False
 path_i=0
 path_state=0
 path_left=path_right=0.0
-path_start=0
+path_t0=0
 path_ms=0
 path_remaining=0.0
 path_heading=0.0
 path_turn_dir=0
 path_turn_deg=path_turn_yaw=0.0
 path_turn_start=0
-
 ble_connected = False
 connections = set()
 rx_buffer = ""
 ble_green_until = 0
-
 sharp_raw = 0
 sharp_voltage = 0.0
 sharp_distance_cm = sharp_instant_cm = -1.0
 sharp_filtered_cm = 0.0
 sharp_filter_ready = False
-
 tof_available = False
 tof_distance_mm = -1
 tof_valid = False
 floor_cliff = 0
-
 mpu_available = False
 mpu_pitch = mpu_roll = mpu_yaw = 0.0
 gyro_z_dps = gyro_z_bias = 0.0
 mpu_last_time = time.ticks_ms()
-
 battery_voltage = 0.0
 battery_adc_voltage = 0.0
 battery_percent = 0
 battery_voltage_filtered = None
-
 safety_flash_start = time.ticks_ms()
-
 ain1, ain2 = Pin(AIN1_PIN, Pin.OUT), Pin(AIN2_PIN, Pin.OUT)
 bin1, bin2 = Pin(BIN1_PIN, Pin.OUT), Pin(BIN2_PIN, Pin.OUT)
 pwma, pwmb = PWM(Pin(PWMA_PIN)), PWM(Pin(PWMB_PIN))
 pwma.freq(20000); pwmb.freq(20000)
 pwma.duty_u16(0); pwmb.duty_u16(0)
-
 np = neopixel.NeoPixel(Pin(NEOPIXEL_PIN, Pin.OUT), NEOPIXEL_COUNT)
-
-# IMPORTANT: read_u16()*3.3 is wrong on ESP32-C3 with attenuation.
-# Use calibrated read_uv() instead.
 sharp_adc = ADC(Pin(SHARP_PIN), atten=ADC.ATTN_11DB)
 battery_adc = ADC(Pin(BATTERY_PIN), atten=ADC.ATTN_11DB)
-
 i2c = SoftI2C(sda=Pin(SDA_PIN), scl=Pin(SCL_PIN), freq=400000)
 try: i2c_devices = i2c.scan()
 except: i2c_devices = []
 print("I2C:", [hex(x) for x in i2c_devices])
-
 oled = None
 try:
     oled = ssd1306.SSD1306_I2C(128, 64, i2c)
 except Exception as e:
     print("OLED not found:", e)
-
 tof = None
 if VL53_AVAILABLE:
     try:
@@ -318,7 +260,6 @@ if VL53_AVAILABLE:
         print("VL53L0X connected")
     except Exception as e:
         print("TOF not found:", e)
-
 MPU_ADDR = 0x68
 if MPU_ADDR in i2c_devices:
     try:
@@ -328,7 +269,6 @@ if MPU_ADDR in i2c_devices:
         print("MPU6050 connected")
     except Exception as e:
         print("MPU error:", e)
-
 def calibrate_gyro():
     global gyro_z_bias
     if not mpu_available: return
@@ -343,7 +283,6 @@ def calibrate_gyro():
         time.sleep_ms(5)
     if count: gyro_z_bias = total / count
     print("Gyro Z bias:", gyro_z_bias)
-
 def drive_motor(in1, in2, pwm, value):
     value = clamp(value, -1.0, 1.0)
     if abs(value) < 0.03: value = 0.0
@@ -354,14 +293,11 @@ def drive_motor(in1, in2, pwm, value):
     else:
         in1.value(0); in2.value(1)
     pwm.duty_u16(int(abs(value) * 65535))
-
 def brake_motor(in1, in2, pwm):
     in1.value(1); in2.value(1); pwm.duty_u16(65535)
-
 def release_motor_output():
     ain1.value(0); ain2.value(0); bin1.value(0); bin2.value(0)
     pwma.duty_u16(0); pwmb.duty_u16(0)
-
 def start_emergency_brake():
     global motor_brake_active, motor_brake_start
     global actual_left, actual_right, drive_left_output, drive_right_output
@@ -371,18 +307,15 @@ def start_emergency_brake():
         motor_brake_start = time.ticks_ms()
         brake_motor(ain1, ain2, pwma)
         brake_motor(bin1, bin2, pwmb)
-
 def update_emergency_brake():
     global motor_brake_active
     if motor_brake_active and time.ticks_diff(time.ticks_ms(), motor_brake_start) >= EMERGENCY_BRAKE_MS:
         motor_brake_active = False
         release_motor_output()
-
 def coast_motor_stop():
     global actual_left, actual_right, drive_left_output, drive_right_output
     actual_left = actual_right = drive_left_output = drive_right_output = 0.0
     release_motor_output()
-
 def absolute_stop():
     global app_stop_latched, requested_left, requested_right
     global auto_running, auto_state, auto_left_target, auto_right_target
@@ -396,12 +329,10 @@ def absolute_stop():
     safety_state = SAFETY_NORMAL
     cliff_danger_count = tof_invalid_count = front_danger_count = 0
     start_emergency_brake()
-
 def stop_motors():
     global requested_left, requested_right
     requested_left = requested_right = 0.0
     start_emergency_brake()
-
 def set_motors(left, right):
     global requested_left, requested_right, app_stop_latched
     if current_mode != MODE_REMOTE: return
@@ -410,36 +341,30 @@ def set_motors(left, right):
     if abs(left) < 0.03: left = 0.0
     if abs(right) < 0.03: right = 0.0
     requested_left, requested_right = left, right
-
 def robot_motion_commanded():
     if current_mode==MODE_REMOTE:
         return abs(requested_left)>.03 or abs(requested_right)>.03 or abs(actual_left)>.03 or abs(actual_right)>.03
     if current_mode==MODE_AUTO: return auto_running
     return current_mode==MODE_PATH and path_running
-
 def forward_motion_commanded():
     if current_mode==MODE_REMOTE:
         return (requested_left+requested_right)/2>.02 or (actual_left+actual_right)/2>.02
     if current_mode==MODE_AUTO and auto_running:
         return (auto_left_target+auto_right_target)/2>.02 or auto_state==AUTO_FORWARD
     return current_mode==MODE_PATH and path_running and path_state==2
-
 def get_front_stop_distance():
     f = clamp((actual_left + actual_right) / 2, 0, 1)
     return clamp(FRONT_HARD_STOP_CM + (FRONT_MAX_BRAKE_CM - FRONT_HARD_STOP_CM) * f,
                  FRONT_HARD_STOP_CM, FRONT_MAX_BRAKE_CM)
-
 def safety_red_now():
     global safety_flash_start
     safety_flash_start = time.ticks_ms()
     for i in range(NEOPIXEL_COUNT): np[i] = (255, 0, 0)
     np.write()
-
 def update_front_safety():
     global front_obstacle, front_danger_count, front_clear_count
     global requested_left, requested_right, auto_left_target, auto_right_target
     if app_stop_latched or sharp_instant_cm < 0: return
-
     if front_obstacle:
         front_clear_count = front_clear_count + 1 if sharp_instant_cm >= FRONT_CLEAR_CM else 0
         if front_clear_count >= FRONT_CLEAR_COUNT:
@@ -448,15 +373,12 @@ def update_front_safety():
             print("WALL CLEARED:", round(sharp_instant_cm, 1), "cm")
             reset_led_animation()
         return
-
     if not forward_motion_commanded():
         front_danger_count = 0
         return
-
     stop_distance = get_front_stop_distance()
     front_danger_count = front_danger_count + 1 if sharp_instant_cm <= stop_distance else 0
     if front_danger_count < FRONT_CONFIRM_COUNT: return
-
     front_danger_count = front_clear_count = 0
     front_obstacle = True
     if current_mode == MODE_REMOTE:
@@ -465,7 +387,6 @@ def update_front_safety():
     start_emergency_brake()
     safety_red_now()
     print("WALL HARD BRAKE:", round(sharp_instant_cm, 1), "/", round(stop_distance, 1))
-
 def start_cliff_safety(reason="CLIFF"):
     global safety_state, safety_state_start, cliff_danger_count, tof_invalid_count
     global cliff_backoff_allowed, requested_left, requested_right
@@ -480,12 +401,10 @@ def start_cliff_safety(reason="CLIFF"):
     start_emergency_brake()
     safety_red_now()
     print("!!!", reason, "CLIFF HARD BRAKE", tof_distance_mm, "backoff", cliff_backoff_allowed)
-
 def update_cliff_safety():
     global safety_state, safety_state_start, cliff_danger_count, tof_invalid_count
     global requested_left, requested_right, auto_state
     now = time.ticks_ms()
-
     if safety_state == SAFETY_NORMAL:
         if tof_valid:
             tof_invalid_count = 0
@@ -501,14 +420,12 @@ def update_cliff_safety():
         else:
             tof_invalid_count = 0
         return
-
     if safety_state == SAFETY_CLIFF_BRAKE:
         if time.ticks_diff(now, safety_state_start) >= CLIFF_BRAKE_MS:
             safety_state = SAFETY_CLIFF_BACKOFF if cliff_backoff_allowed else SAFETY_CLIFF_HOLD
             safety_state_start = now
             print("CLIFF -> REVERSE NOW" if cliff_backoff_allowed else "CLIFF HOLD")
         return
-
     if safety_state == SAFETY_CLIFF_BACKOFF:
         if time.ticks_diff(now, safety_state_start) >= CLIFF_BACKOFF_MS:
             start_emergency_brake()
@@ -516,7 +433,6 @@ def update_cliff_safety():
             safety_state_start = now
             print("CLIFF REVERSE COMPLETE")
         return
-
     if safety_state == SAFETY_CLIFF_HOLD and time.ticks_diff(now, safety_state_start) >= CLIFF_HOLD_MS:
         if tof_valid and floor_cliff == 0:
             safety_state = SAFETY_NORMAL
@@ -528,54 +444,42 @@ def update_cliff_safety():
                 auto_state = AUTO_SCAN_PREP
             else:
                 requested_left = requested_right = 0.0
-
 def set_auto_target(left, right):
     global auto_left_target, auto_right_target
     auto_left_target = clamp(left, -1, 1)
     auto_right_target = clamp(right, -1, 1)
-
 def auto_brake():
     set_auto_target(0, 0)
     start_emergency_brake()
-
 def begin_auto_turn(direction, degrees):
     global auto_turn_direction, auto_turn_degrees, auto_turn_start_yaw, auto_turn_start_time
     auto_turn_direction = -1 if direction < 0 else 1
     auto_turn_degrees = abs(degrees)
     auto_turn_start_yaw = mpu_yaw
     auto_turn_start_time = time.ticks_ms()
-
 def update_auto_turn():
     if app_stop_latched:
         set_auto_target(0, 0)
         return False
-
     now = time.ticks_ms()
     turn_power = AUTO_TURN_POWER
-
     if mpu_available:
         turned = abs(angle_diff(mpu_yaw, auto_turn_start_yaw))
         remaining = auto_turn_degrees - turned
-
         if remaining <= 4.0:
             set_auto_target(0, 0)
             return True
-
         if remaining <= AUTO_TURN_SLOW_AT_DEG:
             turn_power = AUTO_TURN_SLOW_POWER
-
     if time.ticks_diff(now, auto_turn_start_time) >= AUTO_TURN_TIMEOUT_MS:
         print("AUTO TURN TIMEOUT")
         set_auto_target(0, 0)
         return True
-
     if auto_turn_direction < 0:
         set_auto_target(-turn_power, turn_power)
     else:
         set_auto_target(turn_power, -turn_power)
-
     return False
-
 def start_autonomous():
     global auto_running, auto_state, auto_heading, auto_heading_correction, app_stop_latched
     if current_mode != MODE_AUTO:
@@ -588,33 +492,23 @@ def start_autonomous():
     auto_heading_correction = 0.0
     set_auto_target(0, 0)
     print("AUTONOMOUS START")
-
 def stop_autonomous():
     absolute_stop()
     print("AUTONOMOUS STOP")
-
 def update_autonomous():
     global auto_state, auto_state_start, auto_heading, auto_heading_correction
     global auto_left_distance, auto_right_distance, auto_escape_direction
     global front_obstacle, front_danger_count, front_clear_count
-
     if app_stop_latched:
         set_auto_target(0, 0)
         return
-
     if current_mode != MODE_AUTO or not auto_running:
         set_auto_target(0, 0)
         return
-
     if safety_state != SAFETY_NORMAL:
         set_auto_target(0, 0)
         return
-
     now = time.ticks_ms()
-
-    # ------------------------------------------------------------
-    # FORWARD
-    # ------------------------------------------------------------
     if auto_state == AUTO_FORWARD:
         if front_obstacle:
             set_auto_target(0, 0)
@@ -622,307 +516,210 @@ def update_autonomous():
             auto_state_start = now
             print("AUTO WALL -> BRAKE")
             return
-
         speed = clamp(max_speed / 100.0, 0, 1)
         correction_target = 0.0
-
         if mpu_available:
             heading_error = angle_diff(auto_heading, mpu_yaw)
-
-            # Ignore tiny yaw changes to prevent left/right hunting.
             if abs(heading_error) > AUTO_HEADING_DEADBAND:
                 correction_target = clamp(
                     heading_error * AUTO_HEADING_KP,
                     -AUTO_MAX_HEADING_CORRECTION,
                     AUTO_MAX_HEADING_CORRECTION
                 )
-
-        # Slowly blend correction instead of changing motor balance abruptly.
         auto_heading_correction += (
             correction_target - auto_heading_correction
         ) * AUTO_HEADING_FILTER
-
         set_auto_target(
             clamp(speed + auto_heading_correction, 0, 1),
             clamp(speed - auto_heading_correction, 0, 1)
         )
         return
-
-    # ------------------------------------------------------------
-    # WALL: BRAKE AND REVERSE
-    # ------------------------------------------------------------
     if auto_state == AUTO_WALL_BRAKE:
         set_auto_target(0, 0)
-
         if not motor_brake_active:
             auto_state = AUTO_WALL_REVERSE
             auto_state_start = now
             print("AUTO WALL -> REVERSE")
         return
-
     if auto_state == AUTO_WALL_REVERSE:
         set_auto_target(-AUTO_WALL_REVERSE_POWER, -AUTO_WALL_REVERSE_POWER)
-
         if time.ticks_diff(now, auto_state_start) >= AUTO_WALL_REVERSE_MS:
             auto_brake()
             auto_state = AUTO_SCAN_PREP
             auto_state_start = now
             print("AUTO REVERSE COMPLETE -> CHECK LEFT")
         return
-
-    # ------------------------------------------------------------
-    # CHECK LEFT FIRST
-    # ------------------------------------------------------------
     if auto_state == AUTO_SCAN_PREP:
         set_auto_target(0, 0)
-
         if motor_brake_active:
             return
-
         begin_auto_turn(-1, AUTO_SCAN_ANGLE_DEG)
         auto_state = AUTO_SCAN_LEFT
         print("AUTO CHECK LEFT")
         return
-
     if auto_state == AUTO_SCAN_LEFT:
         if update_auto_turn():
             auto_brake()
             auto_state = AUTO_SCAN_LEFT_SETTLE
             auto_state_start = now
         return
-
     if auto_state == AUTO_SCAN_LEFT_SETTLE:
         set_auto_target(0, 0)
-
         if motor_brake_active:
             return
-
         if time.ticks_diff(now, auto_state_start) < AUTO_SCAN_SETTLE_MS:
             return
-
         auto_left_distance = sharp_instant_cm if sharp_instant_cm >= 0 else 0
         print("AUTO LEFT:", round(auto_left_distance, 1), "cm")
-
-        # If left is open, do not scan right.
         if auto_left_distance >= AUTO_MIN_CLEAR_CM:
             print("LEFT OPEN -> FORWARD")
-
             front_obstacle = False
             front_danger_count = 0
             front_clear_count = 0
-
             auto_heading = mpu_yaw
             auto_heading_correction = 0.0
             auto_state = AUTO_FORWARD
             auto_state_start = now
             reset_led_animation()
             return
-
-        # Left blocked. We are ~45 degrees left of the original direction.
-        # Turn ~90 degrees right to look ~45 degrees right.
         print("LEFT BLOCKED -> CHECK RIGHT")
         begin_auto_turn(1, AUTO_SCAN_ANGLE_DEG * 2.0)
         auto_state = AUTO_SCAN_RIGHT
         return
-
-    # ------------------------------------------------------------
-    # CHECK RIGHT ONLY IF LEFT WAS BLOCKED
-    # ------------------------------------------------------------
     if auto_state == AUTO_SCAN_RIGHT:
         if motor_brake_active:
             return
-
         if update_auto_turn():
             auto_brake()
             auto_state = AUTO_SCAN_RIGHT_SETTLE
             auto_state_start = now
         return
-
     if auto_state == AUTO_SCAN_RIGHT_SETTLE:
         set_auto_target(0, 0)
-
         if motor_brake_active:
             return
-
         if time.ticks_diff(now, auto_state_start) < AUTO_SCAN_SETTLE_MS:
             return
-
         auto_right_distance = sharp_instant_cm if sharp_instant_cm >= 0 else 0
         print("AUTO RIGHT:", round(auto_right_distance, 1), "cm")
-
         if auto_right_distance >= AUTO_MIN_CLEAR_CM:
             print("RIGHT OPEN -> FORWARD")
-
             front_obstacle = False
             front_danger_count = 0
             front_clear_count = 0
-
             auto_heading = mpu_yaw
             auto_heading_correction = 0.0
             auto_state = AUTO_FORWARD
             auto_state_start = now
             reset_led_animation()
             return
-
-        # Both directions blocked.
         print("BOTH SIDES BLOCKED -> ESCAPE")
         auto_escape_direction *= -1
         auto_state = AUTO_ESCAPE_REVERSE
         auto_state_start = now
         return
-
-    # ------------------------------------------------------------
-    # ESCAPE - only used if both checked directions are blocked.
-    # ------------------------------------------------------------
     if auto_state == AUTO_ESCAPE_REVERSE:
         set_auto_target(-AUTO_ESCAPE_REVERSE_POWER, -AUTO_ESCAPE_REVERSE_POWER)
-
         if time.ticks_diff(now, auto_state_start) >= AUTO_ESCAPE_REVERSE_MS:
             auto_brake()
             begin_auto_turn(auto_escape_direction, AUTO_ESCAPE_TURN_DEG)
             auto_state = AUTO_ESCAPE_TURN
             print("AUTO ESCAPE TURN")
         return
-
     if auto_state == AUTO_ESCAPE_TURN:
         if motor_brake_active:
             return
-
         if update_auto_turn():
             auto_brake()
-
             front_obstacle = False
             front_danger_count = 0
             front_clear_count = 0
-
             auto_heading = mpu_yaw
             auto_heading_correction = 0.0
             auto_state = AUTO_FORWARD
             auto_state_start = now
             reset_led_animation()
-
             print("AUTO ESCAPE COMPLETE -> FORWARD")
         return
-
-def path_target(l,r):
+def pt(l,r):
     global path_left,path_right
     path_left,path_right=clamp(l,-1,1),clamp(r,-1,1)
-
-def path_turn(a):
+def pturn(a):
     global path_turn_dir,path_turn_deg,path_turn_yaw,path_turn_start
-    path_turn_dir=-1 if a<0 else 1
-    path_turn_deg=abs(a); path_turn_yaw=mpu_yaw; path_turn_start=time.ticks_ms()
-
-def path_turn_update():
-    if path_turn_deg<1: path_target(0,0); return True
+    path_turn_dir=-1 if a<0 else 1; path_turn_deg=abs(a); path_turn_yaw=mpu_yaw; path_turn_start=time.ticks_ms()
+def ptu():
+    if path_turn_deg<1: pt(0,0); return True
+    p=AUTO_TURN_POWER
     if mpu_available:
         d=abs(angle_diff(mpu_yaw,path_turn_yaw))
-        if d>=path_turn_deg-4: path_target(0,0); return True
-        p=AUTO_TURN_SLOW_POWER if path_turn_deg-d<=AUTO_TURN_SLOW_AT_DEG else AUTO_TURN_POWER
-    else: p=AUTO_TURN_POWER
-    if time.ticks_diff(time.ticks_ms(),path_turn_start)>=AUTO_TURN_TIMEOUT_MS:
-        path_target(0,0); return True
-    path_target(-p,p) if path_turn_dir<0 else path_target(p,-p)
-    return False
-
-def path_forward(d):
-    global path_state,path_start,path_ms,path_remaining,path_heading
-    path_remaining=d; path_heading=mpu_yaw
-    sp=max(.2,max_speed/100)
-    path_ms=int(d/(PATH_CMPS*sp)*1000)
-    path_start=time.ticks_ms(); path_state=2
-
-def path_next():
+        if d>=path_turn_deg-4: pt(0,0); return True
+        if path_turn_deg-d<=AUTO_TURN_SLOW_AT_DEG: p=AUTO_TURN_SLOW_POWER
+    if time.ticks_diff(time.ticks_ms(),path_turn_start)>=AUTO_TURN_TIMEOUT_MS: pt(0,0); return True
+    pt(-p,p) if path_turn_dir<0 else pt(p,-p); return False
+def pfwd(d):
+    global path_state,path_t0,path_ms,path_remaining,path_heading
+    path_remaining=d; path_heading=mpu_yaw; sp=max(.2,max_speed/100); path_ms=int(d/(PATH_CMPS*sp)*1000); path_t0=time.ticks_ms(); path_state=2
+def pnext():
     global path_i,path_state,path_running
-    if path_returning:
-        a=-path[path_i][1]
-        path_turn(a); path_state=3
-    else:
-        path_i+=1
-        if path_i>=len(path):
-            path_running=False; path_target(0,0); ble_send("PATH_DONE\n"); return
-        path_turn(path[path_i][1]); path_state=1
-
-def path_start(returning=False):
+    if path_returning: pturn(-path[path_i][1]); path_state=3; return
+    path_i+=1
+    if path_i>=len(path): path_running=False; pt(0,0); ble_send("PATH_DONE\n"); return
+    pturn(path[path_i][1]); path_state=1
+def start_path(r=False):
     global path_running,path_returning,path_i,path_state,app_stop_latched
-    if current_mode!=MODE_PATH or not path: return
-    app_stop_latched=False; path_running=True; path_returning=returning
-    path_i=len(path)-1 if returning else 0
-    path_turn(180 if returning else path[0][1]); path_state=1
-    ble_send("PATH_RETURNING\n" if returning else "PATH_STARTED\n")
-
+    if current_mode!=MODE_PATH or not path:return
+    app_stop_latched=False; path_running=True; path_returning=r; path_i=len(path)-1 if r else 0
+    pturn(180 if r else path[0][1]); path_state=1; ble_send("PATH_RETURNING\n" if r else "PATH_STARTED\n")
 def update_path():
-    global path_state,path_i,path_start,path_ms,path_remaining,path_heading
-    global front_obstacle,front_danger_count,front_clear_count,path_running
-    if current_mode!=MODE_PATH or not path_running or safety_state!=SAFETY_NORMAL: return
-    now=time.ticks_ms()
-
+    global path_state,path_i,path_t0,path_ms,path_remaining,path_heading,path_running
+    global front_obstacle,front_danger_count,front_clear_count
+    if current_mode!=MODE_PATH or not path_running or safety_state!=SAFETY_NORMAL:return
+    n=time.ticks_ms()
     if path_state==1:
-        if path_turn_update():
-            path_heading=mpu_yaw; path_forward(path[path_i][0])
+        if ptu(): path_heading=mpu_yaw; pfwd(path[path_i][0])
         return
-
     if path_state==2:
         if front_obstacle:
-            e=min(path_remaining,PATH_CMPS*max(.2,max_speed/100)*time.ticks_diff(now,path_start)/1000)
-            path_remaining=max(5,path_remaining-e)
-            path_target(-PATH_AVOID_BACK_POWER,-PATH_AVOID_BACK_POWER)
-            path_start=now; path_state=4; return
-        if time.ticks_diff(now,path_start)>=path_ms:
-            path_target(0,0); path_next(); return
-        sp=max_speed/100
-        c=0
+            e=min(path_remaining,PATH_CMPS*max(.2,max_speed/100)*time.ticks_diff(n,path_t0)/1000); path_remaining=max(5,path_remaining-e)
+            pt(-PATH_AVOID_BACK_POWER,-PATH_AVOID_BACK_POWER); path_t0=n; path_state=4; return
+        if time.ticks_diff(n,path_t0)>=path_ms: pt(0,0); pnext(); return
+        sp=max_speed/100; c=0
         if mpu_available:
             e=angle_diff(path_heading,mpu_yaw)
-            if abs(e)>AUTO_HEADING_DEADBAND: c=clamp(e*AUTO_HEADING_KP,-AUTO_MAX_HEADING_CORRECTION,AUTO_MAX_HEADING_CORRECTION)
-        path_target(clamp(sp+c,0,1),clamp(sp-c,0,1)); return
-
+            if abs(e)>AUTO_HEADING_DEADBAND:c=clamp(e*AUTO_HEADING_KP,-AUTO_MAX_HEADING_CORRECTION,AUTO_MAX_HEADING_CORRECTION)
+        pt(clamp(sp+c,0,1),clamp(sp-c,0,1)); return
     if path_state==3:
-        if path_turn_update():
+        if ptu():
             path_i-=1
-            if path_i<0:
-                path_running=False; path_target(0,0); ble_send("PATH_HOME\n")
-            else: path_forward(path[path_i][0])
+            if path_i<0:path_running=False; pt(0,0); ble_send("PATH_HOME\n")
+            else:pfwd(path[path_i][0])
         return
-
     if path_state==4:
-        if time.ticks_diff(now,path_start)>=PATH_AVOID_BACK_MS:
-            path_turn(-AUTO_SCAN_ANGLE_DEG); path_state=5
+        if time.ticks_diff(n,path_t0)>=PATH_AVOID_BACK_MS:pturn(-AUTO_SCAN_ANGLE_DEG); path_state=5
         return
     if path_state==5:
-        if path_turn_update():
-            path_start=now; path_state=6
+        if ptu():path_t0=n; path_state=6
         return
     if path_state==6:
-        if time.ticks_diff(now,path_start)<AUTO_SCAN_SETTLE_MS: return
-        if sharp_instant_cm>=AUTO_MIN_CLEAR_CM:
-            front_obstacle=False; front_danger_count=front_clear_count=0
-            path_heading=mpu_yaw; path_forward(path_remaining); reset_led_animation()
-        else:
-            path_turn(AUTO_SCAN_ANGLE_DEG*2); path_state=7
+        if time.ticks_diff(n,path_t0)<AUTO_SCAN_SETTLE_MS:return
+        if sharp_instant_cm>=AUTO_MIN_CLEAR_CM: front_obstacle=False; front_danger_count=front_clear_count=0; path_heading=mpu_yaw; pfwd(path_remaining); reset_led_animation()
+        else:pturn(AUTO_SCAN_ANGLE_DEG*2); path_state=7
         return
     if path_state==7:
-        if path_turn_update():
-            path_start=now; path_state=8
+        if ptu():path_t0=n; path_state=8
         return
     if path_state==8:
-        if time.ticks_diff(now,path_start)<AUTO_SCAN_SETTLE_MS: return
-        if sharp_instant_cm>=AUTO_MIN_CLEAR_CM:
-            front_obstacle=False; front_danger_count=front_clear_count=0
-            path_heading=mpu_yaw; path_forward(path_remaining); reset_led_animation()
-        else:
-            path_running=False; path_target(0,0); ble_send("PATH_BLOCKED\n")
-
+        if time.ticks_diff(n,path_t0)<AUTO_SCAN_SETTLE_MS:return
+        if sharp_instant_cm>=AUTO_MIN_CLEAR_CM: front_obstacle=False; front_danger_count=front_clear_count=0; path_heading=mpu_yaw; pfwd(path_remaining); reset_led_animation()
+        else:path_running=False; pt(0,0); ble_send("PATH_BLOCKED\n")
 def update_drive_control():
     global actual_left, actual_right, drive_left_output, drive_right_output, drive_last_time
     global requested_left, requested_right, tilt_danger_count
-
     now = time.ticks_ms()
     dt = time.ticks_diff(now, drive_last_time) / 1000.0
     drive_last_time = now
     if dt <= 0: return
     if dt > .1: dt = .1
-
     if motor_brake_active: return
     if safety_state == SAFETY_CLIFF_BRAKE:
         coast_motor_stop(); return
@@ -936,7 +733,6 @@ def update_drive_control():
         coast_motor_stop(); return
     if app_stop_latched:
         release_motor_output(); return
-
     if current_mode == MODE_REMOTE:
         il, ir = requested_left, requested_right
         if front_obstacle and (il + ir) / 2 > .02:
@@ -953,7 +749,6 @@ def update_drive_control():
             corrected_turn = clamp(turn + corr, -1, 1)
         target_left = clamp(throttle + corrected_turn, -1, 1) * (max_speed / 100.0)
         target_right = clamp(throttle - corrected_turn, -1, 1) * (max_speed / 100.0)
-
     elif current_mode == MODE_AUTO and auto_running:
         target_left, target_right = auto_left_target, auto_right_target
     elif current_mode==MODE_PATH and path_running:
@@ -961,7 +756,6 @@ def update_drive_control():
     else:
         coast_motor_stop()
         return
-
     if mpu_available:
         tilt_danger_count = tilt_danger_count + 1 if abs(mpu_pitch) > TILT_STOP_DEG or abs(mpu_roll) > TILT_STOP_DEG else 0
         if tilt_danger_count >= TILT_CONFIRM_COUNT:
@@ -970,32 +764,25 @@ def update_drive_control():
             absolute_stop()
             safety_red_now()
             return
-
     step = DRIVE_RAMP_PER_SEC * dt
     drive_left_output += clamp(target_left - drive_left_output, -step, step)
     drive_right_output += clamp(target_right - drive_right_output, -step, step)
     actual_left, actual_right = drive_left_output, drive_right_output
-
-    # Keep existing corrected physical mapping.
     physical_left = actual_right
     physical_right = -actual_left
     drive_motor(ain1, ain2, pwma, physical_left)
     drive_motor(bin1, bin2, pwmb, physical_right)
-
 def scale_led_color(r, g, b, brightness=None):
     if brightness is None: brightness = led_brightness
     f = clamp(brightness, 0, 100) / 100.0
     return int(r*f), int(g*f), int(b*f)
-
 def leds_off():
     for i in range(NEOPIXEL_COUNT): np[i] = (0, 0, 0)
     np.write()
-
 def set_all_leds(r, g, b, brightness=None):
     c = scale_led_color(r, g, b, brightness)
     for i in range(NEOPIXEL_COUNT): np[i] = c
     np.write()
-
 def color_wheel(p):
     p %= 256
     if p < 85: return 255-p*3, p*3, 0
@@ -1004,21 +791,16 @@ def color_wheel(p):
         return 0, 255-p*3, p*3
     p -= 170
     return p*3, 0, 255-p*3
-
 animation_start = time.ticks_ms()
-
 def reset_led_animation():
     global animation_start
     animation_start = time.ticks_ms()
-
 def safety_led_required():
     return front_obstacle or safety_state != SAFETY_NORMAL
-
 def update_safety_led():
     phase = time.ticks_diff(time.ticks_ms(), safety_flash_start) % SAFETY_FLASH_PERIOD_MS
     if phase < SAFETY_FLASH_PERIOD_MS // 2: set_all_leds(255, 0, 0, 100)
     else: leds_off()
-
 def update_led_animation():
     now = time.ticks_ms()
     if safety_led_required():
@@ -1029,10 +811,8 @@ def update_led_animation():
         leds_off(); return
     if led_animation == LED_SOLID:
         set_all_leds(led_r, led_g, led_b); return
-
     period = max(50, led_speed)
     phase = (time.ticks_diff(now, animation_start) % period) / period
-
     if led_animation == LED_PULSE:
         if phase < .10: level = phase/.10
         elif phase < .18: level = 1.0 - ((phase-.10)/.08)*.65
@@ -1041,14 +821,12 @@ def update_led_animation():
         else: level = 0
         set_all_leds(led_r, led_g, led_b, int(led_brightness*clamp(level,0,1)))
         return
-
     if led_animation == LED_RAINBOW:
         pos = int(phase*255)
         for i in range(NEOPIXEL_COUNT):
             np[i] = scale_led_color(*color_wheel(pos + int(i*256/NEOPIXEL_COUNT)))
         np.write()
         return
-
     if led_animation == LED_STROBE:
         period = max(400, led_speed)
         phase = (time.ticks_diff(now, animation_start) % period) / period
@@ -1056,18 +834,15 @@ def update_led_animation():
         if flash: set_all_leds(255,255,255,led_brightness)
         else: leds_off()
         return
-
     if led_animation == LED_CHASE:
         pos = min(int(phase*NEOPIXEL_COUNT), NEOPIXEL_COUNT-1)
         for i in range(NEOPIXEL_COUNT): np[i] = (0,0,0)
         np[pos] = scale_led_color(led_r,led_g,led_b)
         np.write()
         return
-
     if led_animation == LED_BREATHING:
         level = (math.sin(phase*2*math.pi - math.pi/2)+1)/2
         set_all_leds(led_r,led_g,led_b,int(led_brightness*level))
-
 def read_battery():
     global battery_voltage, battery_adc_voltage, battery_percent, battery_voltage_filtered
     try:
@@ -1075,25 +850,17 @@ def read_battery():
         for _ in range(16):
             total_uv += battery_adc.read_uv()
             time.sleep_us(150)
-
-        # Raw voltage physically seen at GPIO0.
         battery_adc_voltage = (total_uv / 16) / 1000000.0
-
-        # Existing v1.0.15 divider calculation remains unchanged.
         measured_v = battery_adc_voltage * BATTERY_ADC_FACTOR
-
         if battery_voltage_filtered is None:
             battery_voltage_filtered = measured_v
         else:
             battery_voltage_filtered = battery_voltage_filtered * 0.85 + measured_v * 0.15
-
         battery_voltage = battery_voltage_filtered
         pct = ((battery_voltage - BATTERY_EMPTY_V) / (BATTERY_FULL_V - BATTERY_EMPTY_V)) * 100.0
         battery_percent = int(clamp(pct, 0, 100))
-
     except Exception as e:
         print("Battery error:", e)
-
 def sharp_voltage_to_distance(v):
     if v <= .05: return 50.0
     raw = 13.0 / v
@@ -1101,7 +868,6 @@ def sharp_voltage_to_distance(v):
     x = raw - 3.36
     if x <= .05: return 4.0
     return clamp(.56 + 15.99*math.log(x), 4.0, 50.0)
-
 def read_sharp():
     global sharp_raw, sharp_voltage, sharp_distance_cm, sharp_instant_cm
     global sharp_filtered_cm, sharp_filter_ready
@@ -1122,7 +888,6 @@ def read_sharp():
     except Exception as e:
         print("Sharp error:", e)
         sharp_distance_cm = sharp_instant_cm = -1
-
 def get_tof_reading():
     if tof is None: return -1
     for name in ("read", "ping", "range"):
@@ -1132,7 +897,6 @@ def get_tof_reading():
                 return int(v() if callable(v) else v)
         except: pass
     return -1
-
 def read_tof():
     global tof_distance_mm, tof_valid, floor_cliff
     if not tof_available:
@@ -1147,7 +911,6 @@ def read_tof():
     tof_distance_mm = v
     tof_valid = True
     floor_cliff = 0 if v <= CLIFF_THRESHOLD_MM else 1
-
 def read_mpu():
     global mpu_pitch, mpu_roll, mpu_yaw, gyro_z_dps, mpu_last_time
     if not mpu_available: return
@@ -1166,20 +929,17 @@ def read_mpu():
         while mpu_yaw < -180: mpu_yaw += 360
     except Exception as e:
         print("MPU error:", e)
-
 def mode_name():
     if current_mode == MODE_REMOTE: return "REMOTE"
     if current_mode == MODE_TRACKING: return "TRACK"
     if current_mode == MODE_AUTO: return "AUTO" if auto_running else "AUTO WAIT"
     if current_mode == MODE_PATH: return "PATH" if path_running else "PATH WAIT"
     return "?"
-
 def movement_name():
     if app_stop_latched: return "STOP"
     if safety_state == SAFETY_CLIFF_BRAKE: return "CLIFF BRAKE"
     if safety_state == SAFETY_CLIFF_BACKOFF: return "CLIFF BACK"
     if safety_state == SAFETY_CLIFF_HOLD: return "CLIFF HOLD"
-
     if current_mode == MODE_AUTO and auto_running:
         names = {
             AUTO_FORWARD:"AUTO FWD", AUTO_WALL_BRAKE:"WALL BRAKE", AUTO_WALL_REVERSE:"WALL BACK",
@@ -1189,7 +949,6 @@ def movement_name():
             AUTO_ESCAPE_REVERSE:"ESC BACK", AUTO_ESCAPE_TURN:"ESC TURN"
         }
         return names.get(auto_state, "AUTO")
-
     if front_obstacle: return "WALL STOP"
     l, r = requested_left, requested_right
     if abs(l)<.03 and abs(r)<.03: return "STOP"
@@ -1198,11 +957,9 @@ def movement_name():
     if l>.03 and r<-.03: return "SPIN RIGHT"
     if l<-.03 and r>.03: return "SPIN LEFT"
     return "MOVE"
-
 _IRQ_CENTRAL_CONNECT = 1
 _IRQ_CENTRAL_DISCONNECT = 2
 _IRQ_GATTS_WRITE = 3
-
 UART_SERVICE_UUID = bluetooth.UUID("6E400001-B5A3-F393-E0A9-E50E24DCCA9E")
 UART_TX_UUID = bluetooth.UUID("6E400003-B5A3-F393-E0A9-E50E24DCCA9E")
 UART_RX_UUID = bluetooth.UUID("6E400002-B5A3-F393-E0A9-E50E24DCCA9E")
@@ -1210,12 +967,10 @@ UART_SERVICE = (UART_SERVICE_UUID, (
     (UART_TX_UUID, bluetooth.FLAG_NOTIFY),
     (UART_RX_UUID, bluetooth.FLAG_WRITE | bluetooth.FLAG_WRITE_NO_RESPONSE)
 ))
-
 ble = bluetooth.BLE()
 ble.active(True)
 ((tx_handle, rx_handle),) = ble.gatts_register_services((UART_SERVICE,))
 ble.gatts_set_buffer(rx_handle, 1024, True)
-
 def ble_send(message):
     if not connections: return
     data = message.encode()
@@ -1223,33 +978,24 @@ def ble_send(message):
         for pos in range(0, len(data), 20):
             try: ble.gatts_notify(conn, tx_handle, data[pos:pos+20])
             except Exception as e: print("BLE notify error:", e)
-
 ota = OTAUpdater(ble_send, stop_motors)
-
 def send_sensor_telemetry():
     ble_send("S,{:.1f},{},{},{},{}\n".format(sharp_distance_cm,floor_cliff,battery_percent,current_mode,max_speed))
-
 def send_battery():
     ble_send("BAT:{},{:.2f}\n".format(battery_percent,battery_voltage))
-
 def send_mpu():
     if mpu_available:
         ble_send("MPU:{:.1f},{:.1f},{:.1f}\n".format(mpu_pitch,mpu_roll,mpu_yaw))
-
 def send_led_state():
     ble_send("LED,{},{},{},{},{},{}\n".format(led_r,led_g,led_b,led_brightness,led_animation,led_speed))
-
 def send_config():
     ble_send("CFG,{:.5f},{:.5f},{:.5f},{},{}\n".format(pid_p,pid_i,pid_d,max_speed,current_mode))
-
 def send_mode():
     ble_send("MODE,{}\n".format(current_mode))
-
 def update_oled():
     if oled is None: return
     try:
         oled.fill(0)
-
         if ota.active:
             oled.text("BLE: CONNECTED" if ble_connected else "BLE: WAITING",0,0)
             oled.text("FIRMWARE UPDATE",0,16)
@@ -1257,11 +1003,9 @@ def update_oled():
             oled.text("{}%".format(ota.progress()),0,48)
             oled.show()
             return
-
         if ota.install_complete:
             if (time.ticks_ms()//450)%2==0: oled.text("RESTART ROBOT",12,28)
             oled.show(); return
-
         oled.text("BLE: CONNECTED" if ble_connected else "BLE: WAITING",0,0)
         oled.text("MODE:{} S:{}%".format(mode_name(),max_speed)[:16],0,8)
         oled.text("ADC:{:.3f}V".format(battery_adc_voltage)[:16],0,16)
@@ -1277,23 +1021,19 @@ def update_oled():
         oled.show()
     except Exception as e:
         print("OLED error:", e)
-
 def process_command(command):
     global current_mode,max_speed,pid_p,pid_i,pid_d
     global led_r,led_g,led_b,led_brightness,led_animation,led_speed
     global app_stop_latched,auto_running,auto_state,path,path_running
-
     command = command.strip()
     if not command: return
     print("APP:", command)
-
     if command == "STOP":
         absolute_stop(); print("APP STOP"); return
     if command == "AUTOSTOP":
         stop_autonomous(); return
     if command == "FW?":
         ble_send("FW,{}\n".format(FIRMWARE_VERSION)); return
-
     if command.startswith("OTA_BEGIN,"):
         try:
             p=command.split(",")
@@ -1305,7 +1045,6 @@ def process_command(command):
             print("OTA BEGIN error:",e)
             ble_send("OTA_ERROR,BAD_BEGIN\n")
         return
-
     if command.startswith("OTA_DATA,"):
         try:
             p=command.split(",",2)
@@ -1319,7 +1058,6 @@ def process_command(command):
     if command=="OTA_CANCEL": ota.cancel(); return
     if command=="OTA_STATUS": ota.send_status(); return
     if ota.active: return
-
     if command=="AUTOSTART": start_autonomous(); return
     if command.startswith("PATH_BEGIN,"):
         try:
@@ -1336,18 +1074,16 @@ def process_command(command):
         except: ble_send("PATH_ERROR,SEG\n")
         return
     if command=="PATH_END": ble_send("PATH_READY,{}\n".format(len(path))); return
-    if command=="PATH_START": path_start(False); return
-    if command=="PATH_RETURN": path_start(True); return
+    if command=="PATH_START": start_path(False); return
+    if command=="PATH_RETURN": start_path(True); return
     if command=="PATH_STOP": absolute_stop(); ble_send("PATH_STOPPED\n"); return
     if command=="PATH_CLEAR": absolute_stop(); path=[]; ble_send("PATH_CLEARED\n"); return
-
     if command.startswith("MOVE,"):
         try:
             p=command.split(",")
             if len(p)==3: set_motors(float(p[1]),float(p[2]))
         except Exception as e: print("MOVE error:",e)
         return
-
     if command.startswith("MODE,"):
         try:
             m=int(command.split(",")[1])
@@ -1363,7 +1099,6 @@ def process_command(command):
             print("MODE:",current_mode)
         except Exception as e: print("MODE error:",e)
         return
-
     if command.startswith("SPEED,"):
         try:
             max_speed=int(clamp(int(command.split(",")[1]),0,100))
@@ -1371,7 +1106,6 @@ def process_command(command):
             send_config()
         except Exception as e: print("SPEED error:",e)
         return
-
     if command.startswith("PID,"):
         try:
             p=command.split(",")
@@ -1381,7 +1115,6 @@ def process_command(command):
                 send_config()
         except Exception as e: print("PID error:",e)
         return
-
     if command.startswith("LED,"):
         try:
             p=command.split(",")
@@ -1397,7 +1130,6 @@ def process_command(command):
             send_led_state()
         except Exception as e: print("LED error:",e)
         return
-
     if command.startswith("LEDCOLOR,"):
         try:
             p=command.split(",")
@@ -1410,7 +1142,6 @@ def process_command(command):
             send_led_state()
         except Exception as e: print("LEDCOLOR error:",e)
         return
-
     if command.startswith("LEDBRIGHT,"):
         try:
             led_brightness=int(clamp(int(command.split(",")[1]),0,100))
@@ -1418,7 +1149,6 @@ def process_command(command):
             send_led_state()
         except Exception as e: print("LEDBRIGHT error:",e)
         return
-
     if command.startswith("LEDANIM,"):
         try:
             led_animation=int(clamp(int(command.split(",")[1]),0,6))
@@ -1427,7 +1157,6 @@ def process_command(command):
             send_led_state()
         except Exception as e: print("LEDANIM error:",e)
         return
-
     if command.startswith("LEDSPEED,"):
         try:
             led_speed=int(clamp(int(command.split(",")[1]),50,5000))
@@ -1436,25 +1165,20 @@ def process_command(command):
             send_led_state()
         except Exception as e: print("LEDSPEED error:",e)
         return
-
     if command=="LED?": send_led_state(); return
     if command in ("CFG?","CONFIG?"): send_config(); return
     if command=="SAVECFG": save_current_settings(); send_config(); return
     if command in ("OBJECTSTART","OBJECTSTOP"): absolute_stop(); return
-
 def advertising_payload(name):
     p=bytearray((2,0x01,0x06))
     n=name.encode()
     p += bytes((len(n)+1,0x09)) + n
     return p
-
 def start_advertising():
     try: ble.gap_advertise(100000,adv_data=advertising_payload(DEVICE_NAME))
     except Exception as e: print("Advertising error:",e)
-
 def ble_irq(event,data):
     global ble_connected,rx_buffer
-
     if event==_IRQ_CENTRAL_CONNECT:
         global ble_green_until
         conn,_,_=data
@@ -1468,7 +1192,6 @@ def ble_irq(event,data):
         send_sensor_telemetry()
         send_battery()
         send_mpu()
-
     elif event==_IRQ_CENTRAL_DISCONNECT:
         conn,_,_=data
         connections.discard(conn)
@@ -1476,7 +1199,6 @@ def ble_irq(event,data):
         absolute_stop()
         update_oled()
         start_advertising()
-
     elif event==_IRQ_GATTS_WRITE:
         _,attr=data
         if attr!=rx_handle: return
@@ -1489,9 +1211,7 @@ def ble_irq(event,data):
                 if line: process_command(line)
         except Exception as e:
             print("BLE RX error:",e)
-
 ble.irq(ble_irq)
-
 def confirm_firmware_boot():
     try:
         if OTA_PENDING_FILE in os.listdir():
@@ -1499,7 +1219,6 @@ def confirm_firmware_boot():
             print("Firmware boot confirmed - rollback disarmed")
     except Exception as e:
         print("Boot confirmation error:", e)
-
 print("BluBot Firmware",FIRMWARE_VERSION)
 coast_motor_stop()
 reset_led_animation()
@@ -1512,56 +1231,40 @@ read_mpu()
 update_led_animation()
 update_oled()
 start_advertising()
-
-# Startup completed successfully. Disarm OTA rollback.
 confirm_firmware_boot()
-
 now=time.ticks_ms()
 sharp_last=tof_last=mpu_control_last=telemetry_last=mpu_telemetry_last=battery_last=oled_last=now
-
 while True:
     now=time.ticks_ms()
     update_emergency_brake()
-
     if time.ticks_diff(now,tof_last)>=TOF_INTERVAL_MS:
         tof_last=now
         read_tof()
         update_cliff_safety()
-
     if time.ticks_diff(now,sharp_last)>=SHARP_INTERVAL_MS:
         sharp_last=now
         read_sharp()
         update_front_safety()
-
     if time.ticks_diff(now,mpu_control_last)>=MPU_CONTROL_INTERVAL_MS:
         mpu_control_last=now
         read_mpu()
-
     update_autonomous()
     update_path()
     update_drive_control()
     update_led_animation()
-
     if time.ticks_diff(now,battery_last)>=BATTERY_INTERVAL_MS:
         battery_last=now
         read_battery()
         if ble_connected and not ota.active: send_battery()
-
     if time.ticks_diff(now,telemetry_last)>=FAST_TELEMETRY_INTERVAL_MS:
         telemetry_last=now
         if ble_connected and not ota.active: send_sensor_telemetry()
-
     if time.ticks_diff(now,mpu_telemetry_last)>=MPU_TELEMETRY_INTERVAL_MS:
         mpu_telemetry_last=now
         if ble_connected and not ota.active: send_mpu()
-
     if time.ticks_diff(now,oled_last)>=OLED_INTERVAL_MS:
         oled_last=now
         update_oled()
-
     if settings_dirty and time.ticks_diff(now,settings_dirty_since)>=SETTINGS_SAVE_DELAY_MS:
         save_current_settings()
-
     time.sleep_ms(2)
-
-
