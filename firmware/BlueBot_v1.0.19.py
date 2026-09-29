@@ -103,8 +103,8 @@ AUTO_HEADING_FILTER = 0.08
 AUTO_TURN_TIMEOUT_MS = 1400
 PATH_MAX=40
 PATH_CMPS=45.0
-PATH_AVOID_BACK_MS=250
-PATH_AVOID_BACK_POWER=.35
+PATH_BACK_MS=220
+PATH_BACK_POWER=.32
 SAFETY_FLASH_PERIOD_MS = 300
 BATTERY_ADC_FACTOR = 4.3333
 BATTERY_EMPTY_V = 6.0
@@ -203,16 +203,9 @@ auto_turn_start_time = 0
 auto_escape_direction = -1
 path=[]
 path_running=path_returning=False
-path_i=0
-path_state=0
-path_left=path_right=0.0
-path_t0=0
-path_ms=0
-path_remaining=0.0
-path_heading=0.0
-path_turn_dir=0
-path_turn_deg=path_turn_yaw=0.0
-path_turn_start=0
+path_i=path_state=0
+path_t0=path_ms=0
+path_remaining=path_heading=0.0
 ble_connected = False
 connections = set()
 rx_buffer = ""
@@ -318,14 +311,12 @@ def coast_motor_stop():
     release_motor_output()
 def absolute_stop():
     global app_stop_latched, requested_left, requested_right
-    global auto_running, auto_state, auto_left_target, auto_right_target
-    global path_running,path_left,path_right,path_state
+    global auto_running, auto_state, auto_left_target, auto_right_target,path_running,path_state
     global safety_state, cliff_danger_count, tof_invalid_count, front_danger_count
     app_stop_latched = True
     requested_left = requested_right = 0.0
-    auto_running = False; auto_state = AUTO_IDLE
-    auto_left_target = auto_right_target = 0.0
-    path_running=False; path_left=path_right=0.0; path_state=0
+    auto_running=False; auto_state=AUTO_IDLE; path_running=False; path_state=0
+    auto_left_target=auto_right_target=0.0
     safety_state = SAFETY_NORMAL
     cliff_danger_count = tof_invalid_count = front_danger_count = 0
     start_emergency_brake()
@@ -342,15 +333,11 @@ def set_motors(left, right):
     if abs(right) < 0.03: right = 0.0
     requested_left, requested_right = left, right
 def robot_motion_commanded():
-    if current_mode==MODE_REMOTE:
-        return abs(requested_left)>.03 or abs(requested_right)>.03 or abs(actual_left)>.03 or abs(actual_right)>.03
-    if current_mode==MODE_AUTO: return auto_running
-    return current_mode==MODE_PATH and path_running
+    if current_mode==MODE_REMOTE:return abs(requested_left)>.03 or abs(requested_right)>.03 or abs(actual_left)>.03 or abs(actual_right)>.03
+    return (current_mode==MODE_AUTO and auto_running) or (current_mode==MODE_PATH and path_running)
 def forward_motion_commanded():
-    if current_mode==MODE_REMOTE:
-        return (requested_left+requested_right)/2>.02 or (actual_left+actual_right)/2>.02
-    if current_mode==MODE_AUTO and auto_running:
-        return (auto_left_target+auto_right_target)/2>.02 or auto_state==AUTO_FORWARD
+    if current_mode==MODE_REMOTE:return (requested_left+requested_right)/2>.02 or (actual_left+actual_right)/2>.02
+    if current_mode==MODE_AUTO and auto_running:return (auto_left_target+auto_right_target)/2>.02 or auto_state==AUTO_FORWARD
     return current_mode==MODE_PATH and path_running and path_state==2
 def get_front_stop_distance():
     f = clamp((actual_left + actual_right) / 2, 0, 1)
@@ -641,77 +628,92 @@ def update_autonomous():
             reset_led_animation()
             print("AUTO ESCAPE COMPLETE -> FORWARD")
         return
-def pt(l,r):
-    global path_left,path_right
-    path_left,path_right=clamp(l,-1,1),clamp(r,-1,1)
-def pturn(a):
-    global path_turn_dir,path_turn_deg,path_turn_yaw,path_turn_start
-    path_turn_dir=-1 if a<0 else 1; path_turn_deg=abs(a); path_turn_yaw=mpu_yaw; path_turn_start=time.ticks_ms()
-def ptu():
-    if path_turn_deg<1: pt(0,0); return True
-    p=AUTO_TURN_POWER
-    if mpu_available:
-        d=abs(angle_diff(mpu_yaw,path_turn_yaw))
-        if d>=path_turn_deg-4: pt(0,0); return True
-        if path_turn_deg-d<=AUTO_TURN_SLOW_AT_DEG: p=AUTO_TURN_SLOW_POWER
-    if time.ticks_diff(time.ticks_ms(),path_turn_start)>=AUTO_TURN_TIMEOUT_MS: pt(0,0); return True
-    pt(-p,p) if path_turn_dir<0 else pt(p,-p); return False
-def pfwd(d):
-    global path_state,path_t0,path_ms,path_remaining,path_heading
-    path_remaining=d; path_heading=mpu_yaw; sp=max(.2,max_speed/100); path_ms=int(d/(PATH_CMPS*sp)*1000); path_t0=time.ticks_ms(); path_state=2
-def pnext():
-    global path_i,path_state,path_running
-    if path_returning: pturn(-path[path_i][1]); path_state=3; return
-    path_i+=1
-    if path_i>=len(path): path_running=False; pt(0,0); ble_send("PATH_DONE\n"); return
-    pturn(path[path_i][1]); path_state=1
-def start_path(r=False):
+def path_forward(d,state=2):
+    global path_remaining,path_heading,path_t0,path_ms,path_state
+    path_remaining=d; path_heading=mpu_yaw
+    sp=max(.2,max_speed/100); path_ms=int(d/(PATH_CMPS*sp)*1000)
+    path_t0=time.ticks_ms(); path_state=state
+def path_begin(returning=False):
     global path_running,path_returning,path_i,path_state,app_stop_latched
     if current_mode!=MODE_PATH or not path:return
-    app_stop_latched=False; path_running=True; path_returning=r; path_i=len(path)-1 if r else 0
-    pturn(180 if r else path[0][1]); path_state=1; ble_send("PATH_RETURNING\n" if r else "PATH_STARTED\n")
+    app_stop_latched=False; path_running=True; path_returning=returning
+    if returning:
+        path_i=len(path)-1; begin_auto_turn(1,180); path_state=3
+        ble_send("PATH_RETURNING\n")
+    else:
+        path_i=0; begin_auto_turn(-1 if path[0][1]<0 else 1,abs(path[0][1])); path_state=1
+        ble_send("PATH_STARTED\n")
+def path_stop(msg=True):
+    global path_running,path_state
+    path_running=False; path_state=0; set_auto_target(0,0)
+    if msg:ble_send("PATH_STOPPED\n")
 def update_path():
-    global path_state,path_i,path_t0,path_ms,path_remaining,path_heading,path_running
+    global path_i,path_state,path_t0,path_remaining,path_heading,path_running
     global front_obstacle,front_danger_count,front_clear_count
     if current_mode!=MODE_PATH or not path_running or safety_state!=SAFETY_NORMAL:return
     n=time.ticks_ms()
     if path_state==1:
-        if ptu(): path_heading=mpu_yaw; pfwd(path[path_i][0])
+        if update_auto_turn():path_forward(path[path_i][0])
         return
     if path_state==2:
         if front_obstacle:
-            e=min(path_remaining,PATH_CMPS*max(.2,max_speed/100)*time.ticks_diff(n,path_t0)/1000); path_remaining=max(5,path_remaining-e)
-            pt(-PATH_AVOID_BACK_POWER,-PATH_AVOID_BACK_POWER); path_t0=n; path_state=4; return
-        if time.ticks_diff(n,path_t0)>=path_ms: pt(0,0); pnext(); return
+            e=PATH_CMPS*max(.2,max_speed/100)*time.ticks_diff(n,path_t0)/1000
+            path_remaining=max(5,path_remaining-min(path_remaining,e))
+            set_auto_target(-PATH_BACK_POWER,-PATH_BACK_POWER); path_t0=n; path_state=6; return
+        if time.ticks_diff(n,path_t0)>=path_ms:
+            set_auto_target(0,0); path_i+=1
+            if path_i>=len(path):path_running=False; ble_send("PATH_DONE\n"); return
+            a=path[path_i][1]; begin_auto_turn(-1 if a<0 else 1,abs(a)); path_state=1; return
         sp=max_speed/100; c=0
         if mpu_available:
             e=angle_diff(path_heading,mpu_yaw)
             if abs(e)>AUTO_HEADING_DEADBAND:c=clamp(e*AUTO_HEADING_KP,-AUTO_MAX_HEADING_CORRECTION,AUTO_MAX_HEADING_CORRECTION)
-        pt(clamp(sp+c,0,1),clamp(sp-c,0,1)); return
+        set_auto_target(clamp(sp+c,0,1),clamp(sp-c,0,1)); return
     if path_state==3:
-        if ptu():
-            path_i-=1
-            if path_i<0:path_running=False; pt(0,0); ble_send("PATH_HOME\n")
-            else:pfwd(path[path_i][0])
+        if update_auto_turn():path_forward(path[path_i][0],4)
         return
     if path_state==4:
-        if time.ticks_diff(n,path_t0)>=PATH_AVOID_BACK_MS:pturn(-AUTO_SCAN_ANGLE_DEG); path_state=5
-        return
+        if front_obstacle:
+            e=PATH_CMPS*max(.2,max_speed/100)*time.ticks_diff(n,path_t0)/1000
+            path_remaining=max(5,path_remaining-min(path_remaining,e))
+            set_auto_target(-PATH_BACK_POWER,-PATH_BACK_POWER); path_t0=n; path_state=6; return
+        if time.ticks_diff(n,path_t0)>=path_ms:
+            set_auto_target(0,0)
+            if path_i==0:path_running=False; ble_send("PATH_HOME\n"); return
+            a=-path[path_i][1]; path_i-=1
+            begin_auto_turn(-1 if a<0 else 1,abs(a)); path_state=5; return
+        sp=max_speed/100; c=0
+        if mpu_available:
+            e=angle_diff(path_heading,mpu_yaw)
+            if abs(e)>AUTO_HEADING_DEADBAND:c=clamp(e*AUTO_HEADING_KP,-AUTO_MAX_HEADING_CORRECTION,AUTO_MAX_HEADING_CORRECTION)
+        set_auto_target(clamp(sp+c,0,1),clamp(sp-c,0,1)); return
     if path_state==5:
-        if ptu():path_t0=n; path_state=6
+        if update_auto_turn():path_forward(path[path_i][0],4)
         return
     if path_state==6:
-        if time.ticks_diff(n,path_t0)<AUTO_SCAN_SETTLE_MS:return
-        if sharp_instant_cm>=AUTO_MIN_CLEAR_CM: front_obstacle=False; front_danger_count=front_clear_count=0; path_heading=mpu_yaw; pfwd(path_remaining); reset_led_animation()
-        else:pturn(AUTO_SCAN_ANGLE_DEG*2); path_state=7
+        if time.ticks_diff(n,path_t0)>=PATH_BACK_MS:
+            begin_auto_turn(-1,AUTO_SCAN_ANGLE_DEG); path_state=7
         return
     if path_state==7:
-        if ptu():path_t0=n; path_state=8
+        if update_auto_turn():path_t0=n; path_state=8
         return
     if path_state==8:
         if time.ticks_diff(n,path_t0)<AUTO_SCAN_SETTLE_MS:return
-        if sharp_instant_cm>=AUTO_MIN_CLEAR_CM: front_obstacle=False; front_danger_count=front_clear_count=0; path_heading=mpu_yaw; pfwd(path_remaining); reset_led_animation()
-        else:path_running=False; pt(0,0); ble_send("PATH_BLOCKED\n")
+        if sharp_instant_cm>=AUTO_MIN_CLEAR_CM:
+            front_obstacle=False; front_danger_count=front_clear_count=0
+            path_forward(path_remaining,4 if path_returning else 2); reset_led_animation()
+        else:
+            begin_auto_turn(1,AUTO_SCAN_ANGLE_DEG*2); path_state=9
+        return
+    if path_state==9:
+        if update_auto_turn():path_t0=n; path_state=10
+        return
+    if path_state==10:
+        if time.ticks_diff(n,path_t0)<AUTO_SCAN_SETTLE_MS:return
+        if sharp_instant_cm>=AUTO_MIN_CLEAR_CM:
+            front_obstacle=False; front_danger_count=front_clear_count=0
+            path_forward(path_remaining,4 if path_returning else 2); reset_led_animation()
+        else:path_stop(False); ble_send("PATH_BLOCKED\n")
 def update_drive_control():
     global actual_left, actual_right, drive_left_output, drive_right_output, drive_last_time
     global requested_left, requested_right, tilt_danger_count
@@ -749,10 +751,8 @@ def update_drive_control():
             corrected_turn = clamp(turn + corr, -1, 1)
         target_left = clamp(throttle + corrected_turn, -1, 1) * (max_speed / 100.0)
         target_right = clamp(throttle - corrected_turn, -1, 1) * (max_speed / 100.0)
-    elif current_mode == MODE_AUTO and auto_running:
-        target_left, target_right = auto_left_target, auto_right_target
-    elif current_mode==MODE_PATH and path_running:
-        target_left,target_right=path_left,path_right
+    elif current_mode==MODE_AUTO and auto_running or current_mode==MODE_PATH and path_running:
+        target_left,target_right=auto_left_target,auto_right_target
     else:
         coast_motor_stop()
         return
@@ -1058,26 +1058,26 @@ def process_command(command):
     if command=="OTA_CANCEL": ota.cancel(); return
     if command=="OTA_STATUS": ota.send_status(); return
     if ota.active: return
-    if command=="AUTOSTART": start_autonomous(); return
     if command.startswith("PATH_BEGIN,"):
         try:
             n=int(command.split(",")[1])
-            if n<1 or n>PATH_MAX: ble_send("PATH_ERROR,COUNT\n"); return
+            if n<1 or n>PATH_MAX:raise ValueError
             path=[]; ble_send("PATH_BEGIN_OK\n")
-        except: ble_send("PATH_ERROR,BEGIN\n")
+        except:ble_send("PATH_ERROR,BEGIN\n")
         return
     if command.startswith("PATH_SEG,"):
         try:
             p=command.split(","); d=float(p[1]); a=float(p[2])
-            if len(path)>=PATH_MAX or d<5 or d>150 or a<-180 or a>180: raise ValueError
+            if len(path)>=PATH_MAX or d<5 or d>150 or a<-180 or a>180:raise ValueError
             path.append((d,a)); ble_send("PATH_SEG_OK,{}\n".format(len(path)))
-        except: ble_send("PATH_ERROR,SEG\n")
+        except:ble_send("PATH_ERROR,SEG\n")
         return
-    if command=="PATH_END": ble_send("PATH_READY,{}\n".format(len(path))); return
-    if command=="PATH_START": start_path(False); return
-    if command=="PATH_RETURN": start_path(True); return
-    if command=="PATH_STOP": absolute_stop(); ble_send("PATH_STOPPED\n"); return
-    if command=="PATH_CLEAR": absolute_stop(); path=[]; ble_send("PATH_CLEARED\n"); return
+    if command=="PATH_END":ble_send("PATH_READY,{}\n".format(len(path))); return
+    if command=="PATH_START":path_begin(False); return
+    if command=="PATH_RETURN":path_begin(True); return
+    if command=="PATH_STOP":path_stop(True); return
+    if command=="PATH_CLEAR":path_stop(False); path=[]; ble_send("PATH_CLEARED\n"); return
+    if command=="AUTOSTART": start_autonomous(); return
     if command.startswith("MOVE,"):
         try:
             p=command.split(",")
