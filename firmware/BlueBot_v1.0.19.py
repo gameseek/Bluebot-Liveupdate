@@ -25,6 +25,10 @@ except:
 DEVICE_NAME = "BluBot"
 SETTINGS_FILE = "settings.json"
 OTA_PENDING_FILE = "ota_pending.flag"
+import gc
+gc.collect()
+ble=bluetooth.BLE()
+ble.active(True)
 MODE_REMOTE = 1
 MODE_TRACKING = 2
 MODE_AUTO = 3
@@ -967,8 +971,6 @@ UART_SERVICE = (UART_SERVICE_UUID, (
     (UART_TX_UUID, bluetooth.FLAG_NOTIFY),
     (UART_RX_UUID, bluetooth.FLAG_WRITE | bluetooth.FLAG_WRITE_NO_RESPONSE)
 ))
-ble = bluetooth.BLE()
-ble.active(True)
 ((tx_handle, rx_handle),) = ble.gatts_register_services((UART_SERVICE,))
 ble.gatts_set_buffer(rx_handle, 1024, True)
 def ble_send(message):
