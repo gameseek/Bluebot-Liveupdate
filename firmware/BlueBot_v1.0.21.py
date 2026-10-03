@@ -14,7 +14,7 @@ FIRMWARE_VERSION = "1.0.21"
 SETTINGS_VERSION = "1.0.2"
 from machine import Pin, PWM, ADC, SoftI2C
 import machine
-import bluetooth, neopixel, time, math, json, os, struct
+import bluetooth, neopixel, time, math, json, os, struct, gc
 import ssd1306
 from ota import OTAUpdater
 try:
@@ -202,6 +202,8 @@ connections = set()
 rx_buffer = ""
 path_loaded=False
 ble_green_until = 0
+ble_connect_pending=False
+ble_connect_time=0
 sharp_raw = 0
 sharp_voltage = 0.0
 sharp_distance_cm = sharp_instant_cm = -1.0
@@ -894,7 +896,7 @@ except:
     ble=bluetooth.BLE()
     ble.active(True)
 ((tx_handle, rx_handle),) = ble.gatts_register_services((UART_SERVICE,))
-ble.gatts_set_buffer(rx_handle, 1024, True)
+ble.gatts_set_buffer(rx_handle,256,True)
 PATH_SRC='P=[];run=False;ret=False;i=st=0;t0=ms=0;rem=hd=0.0\nPMAX=40;CMPS=45.0;BACKMS=220;BACK=.32\ndef prun():return run\ndef pfwding():return run and st in (2,4)\ndef pstop(msg=True):\n global run,st\n run=False;st=0;set_auto_target(0,0)\n if msg:ble_send("PATH_STOPPED\\n")\ndef pforward(d,state):\n global rem,hd,t0,ms,st\n rem=d;hd=mpu_yaw;sp=max(.2,max_speed/100);ms=int(d/(CMPS*sp)*1000);t0=time.ticks_ms();st=state\ndef pbegin(back=False):\n global run,ret,i,st,app_stop_latched\n if current_mode!=MODE_PATH or not P:return\n app_stop_latched=False;run=True;ret=back\n if back:\n  i=len(P)-1;begin_auto_turn(1,180);st=3;ble_send("PATH_RETURNING\\n")\n else:\n  i=0;a=P[0][1];begin_auto_turn(-1 if a<0 else 1,abs(a));st=1;ble_send("PATH_STARTED\\n")\ndef pcmd(c):\n global P\n if c.startswith("PATH_BEGIN,"):\n  try:\n   n=int(c.split(",")[1])\n   if n<1 or n>PMAX:raise ValueError\n   P=[];ble_send("PATH_BEGIN_OK\\n")\n  except:ble_send("PATH_ERROR,BEGIN\\n")\n elif c.startswith("PATH_SEG,"):\n  try:\n   q=c.split(",");d=float(q[1]);a=float(q[2])\n   if len(P)>=PMAX or d<5 or d>150 or a<-180 or a>180:raise ValueError\n   P.append((d,a));ble_send("PATH_SEG_OK,{}\\n".format(len(P)))\n  except:ble_send("PATH_ERROR,SEG\\n")\n elif c=="PATH_END":ble_send("PATH_READY,{}\\n".format(len(P)))\n elif c=="PATH_START":pbegin(False)\n elif c=="PATH_RETURN":pbegin(True)\n elif c=="PATH_STOP":pstop(True)\n elif c=="PATH_CLEAR":pstop(False);P=[];ble_send("PATH_CLEARED\\n")\ndef pclear():\n global front_obstacle,front_danger_count,front_clear_count\n front_obstacle=False;front_danger_count=front_clear_count=0;reset_led_animation()\ndef pupdate():\n global i,st,t0,rem,hd,run\n if current_mode!=MODE_PATH or not run or safety_state!=SAFETY_NORMAL:return\n n=time.ticks_ms()\n if st==1:\n  if update_auto_turn():pforward(P[i][0],2)\n  return\n if st==2:\n  if front_obstacle:\n   e=CMPS*max(.2,max_speed/100)*time.ticks_diff(n,t0)/1000;rem=max(5,rem-min(rem,e));set_auto_target(-BACK,-BACK);t0=n;st=6;return\n  if time.ticks_diff(n,t0)>=ms:\n   set_auto_target(0,0);i+=1\n   if i>=len(P):run=False;ble_send("PATH_DONE\\n");return\n   a=P[i][1];begin_auto_turn(-1 if a<0 else 1,abs(a));st=1;return\n  sp=max_speed/100;c=0\n  if mpu_available:\n   e=angle_diff(hd,mpu_yaw)\n   if abs(e)>AUTO_HEADING_DEADBAND:c=clamp(e*AUTO_HEADING_KP,-AUTO_MAX_HEADING_CORRECTION,AUTO_MAX_HEADING_CORRECTION)\n  set_auto_target(clamp(sp+c,0,1),clamp(sp-c,0,1));return\n if st==3:\n  if update_auto_turn():pforward(P[i][0],4)\n  return\n if st==4:\n  if front_obstacle:\n   e=CMPS*max(.2,max_speed/100)*time.ticks_diff(n,t0)/1000;rem=max(5,rem-min(rem,e));set_auto_target(-BACK,-BACK);t0=n;st=6;return\n  if time.ticks_diff(n,t0)>=ms:\n   set_auto_target(0,0)\n   if i==0:run=False;ble_send("PATH_HOME\\n");return\n   a=-P[i][1];i-=1;begin_auto_turn(-1 if a<0 else 1,abs(a));st=5;return\n  sp=max_speed/100;c=0\n  if mpu_available:\n   e=angle_diff(hd,mpu_yaw)\n   if abs(e)>AUTO_HEADING_DEADBAND:c=clamp(e*AUTO_HEADING_KP,-AUTO_MAX_HEADING_CORRECTION,AUTO_MAX_HEADING_CORRECTION)\n  set_auto_target(clamp(sp+c,0,1),clamp(sp-c,0,1));return\n if st==5:\n  if update_auto_turn():pforward(P[i][0],4)\n  return\n if st==6:\n  if time.ticks_diff(n,t0)>=BACKMS:begin_auto_turn(-1,AUTO_SCAN_ANGLE_DEG);st=7\n  return\n if st==7:\n  if update_auto_turn():t0=n;st=8\n  return\n if st==8:\n  if time.ticks_diff(n,t0)<AUTO_SCAN_SETTLE_MS:return\n  if sharp_instant_cm>=AUTO_MIN_CLEAR_CM:pclear();pforward(rem,4 if ret else 2)\n  else:begin_auto_turn(1,AUTO_SCAN_ANGLE_DEG*2);st=9\n  return\n if st==9:\n  if update_auto_turn():t0=n;st=10\n  return\n if st==10:\n  if time.ticks_diff(n,t0)<AUTO_SCAN_SETTLE_MS:return\n  if sharp_instant_cm>=AUTO_MIN_CLEAR_CM:pclear();pforward(rem,4 if ret else 2)\n  else:pstop(False);ble_send("PATH_BLOCKED\\n")\n'
 def load_path():
     global path_loaded
@@ -1095,24 +1097,20 @@ def start_advertising():
     try: ble.gap_advertise(100000,adv_data=advertising_payload(DEVICE_NAME))
     except Exception as e: print("Advertising error:",e)
 def ble_irq(event,data):
-    global ble_connected,rx_buffer
+    global ble_connected,rx_buffer,ble_green_until,ble_connect_pending,ble_connect_time
     if event==_IRQ_CENTRAL_CONNECT:
-        global ble_green_until
         conn,_,_=data
         connections.add(conn)
         ble_connected=True
+        print("BLE CONNECTED",conn,"FREE",gc.mem_free())
         ble_green_until=time.ticks_add(time.ticks_ms(),3000)
-        update_oled()
-        send_mode()
-        send_config()
-        send_led_state()
-        send_sensor_telemetry()
-        send_battery()
-        send_mpu()
+        ble_connect_pending=True
+        ble_connect_time=time.ticks_ms()
     elif event==_IRQ_CENTRAL_DISCONNECT:
         conn,_,_=data
         connections.discard(conn)
         ble_connected=len(connections)>0
+        ble_connect_pending=False
         absolute_stop()
         update_oled()
         start_advertising()
@@ -1147,12 +1145,23 @@ calibrate_gyro()
 read_mpu()
 update_led_animation()
 update_oled()
+gc.collect()
+print("BLE ADV FREE",gc.mem_free())
 start_advertising()
 confirm_firmware_boot()
 now=time.ticks_ms()
 sharp_last=tof_last=mpu_control_last=telemetry_last=mpu_telemetry_last=battery_last=oled_last=now
 while True:
     now=time.ticks_ms()
+    if ble_connect_pending and time.ticks_diff(now,ble_connect_time)>=120:
+        ble_connect_pending=False
+        update_oled()
+        send_mode()
+        send_config()
+        send_led_state()
+        send_sensor_telemetry()
+        send_battery()
+        send_mpu()
     update_emergency_brake()
     if time.ticks_diff(now,tof_last)>=TOF_INTERVAL_MS:
         tof_last=now
@@ -1185,3 +1194,4 @@ while True:
     if settings_dirty and time.ticks_diff(now,settings_dirty_since)>=SETTINGS_SAVE_DELAY_MS:
         save_current_settings()
     time.sleep_ms(2)
+
